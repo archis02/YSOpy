@@ -11,11 +11,15 @@ from astropy.io.votable import parse
 from astropy.modeling.physical_models import BlackBody
 from dust_extinction.parameter_averages import F19
 from dust_extinction.averages import G21_MWAvg
-from configparser import ConfigParser
+# from configparser import ConfigParser
 import argparse
 import time
+from utils import config_read
+from h_emission import get_h_intensity
+from h_minus_emission import get_h_minus_intensity
 
-
+# config_read
+'''
 def config_read(path):
     """Read data from config file and cast to expected data types
 
@@ -71,7 +75,8 @@ def config_read(path):
             f.write(str(dict_config))
 
     return dict_config
-#trial comment
+'''
+
 
 def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     """read the stored BT-Settl model spectra from .npy format, for the supplied temperature and logg values
@@ -101,11 +106,8 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     """
 
     loc = config['bt_settl_path']
-    m = config['m']
-    inclination = config['inclination']
     l_min = config['l_min']
     l_max = config['l_max']
-    n_data = config['n_data']
 
     if temperature >= 100:
         address = f"{loc}/lte{temperature}-{logg}-0.0a+0.0.BT-Settl.7.dat.npy"
@@ -122,7 +124,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     # extra region left for re-interpolation
     l_pad = 20
     if r_in is not None:
-        v_max = np.sqrt(const.G.value * m.value / r_in.value) * np.sin(inclination) / const.c.value
+        v_max = np.sqrt(const.G.value * config['m'].value / r_in.value) * np.sin(config['inclination']) / const.c.value
         l_pad = l_max.value * v_max
         # print(l_pad)
 
@@ -136,7 +138,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
         f = interp1d(x, y)
-        trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, n_data, endpoint=True) * u.AA
+        trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, config['n_data'], endpoint=True) * u.AA
         trimmed_flux = f(trimmed_wave) * u.erg / (u.cm * u.cm * u.s * u.AA)
 
     return trimmed_wave, trimmed_flux
@@ -623,7 +625,6 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
     return wavelength, obs_viscous_disk_flux
 
 
-# photosphere
 def generate_photosphere_flux(config):
     """generate the flux from the stellar photosphere
 
@@ -639,7 +640,7 @@ def generate_photosphere_flux(config):
     """
     l_min = config['l_min']
     l_max = config['l_max']
-    log_g_star = config['log_g_star']  # ADD THIS TO CONFIG CODE
+    log_g_star = config['log_g_star']
     t_star = config["t_star"]
     r_star = config["r_star"]
     d_star = config["d_star"]
@@ -650,26 +651,23 @@ def generate_photosphere_flux(config):
     #star_data = parse(f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.xml")
     address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.npy"
     data = np.load(address)
+
     cond1 = l_min.value - 10 < data[0]
     cond2 = data[0] < l_max.value + 10
     trimmed_ids = np.logical_and(cond1,cond2)
     x2 = data[0][trimmed_ids].astype(np.float64)
     y2 = data[1][trimmed_ids].astype(np.float64)
 
-    #data_table = star_data.get_first_table().array
-    #trimmed_data2 = np.extract(data_table['WAVELENGTH'] > l_min.value - 10, data_table)
-    #trimmed_data2 = np.extract(trimmed_data2['WAVELENGTH'] < l_max.value + 10, trimmed_data2)
-    #x2 = trimmed_data2['WAVELENGTH'].astype(np.float64)
-    #y2 = trimmed_data2['FLUX'].astype(np.float64)
-
     wavelength, y_new_star = logspace_reinterp(config, x2, y2)
     obs_star_flux = y_new_star * (r_star.si / d_star.si) ** 2
+
     if config['plot']:
         plt.plot(wavelength, obs_star_flux)
         plt.xlabel("Wavelength in $\AA$ ----->")
         plt.ylabel("Flux [erg / ($cm^{2}$ s $\AA$)] ----->")
         plt.title("Stellar Photosphere SED")
         plt.show()
+
     if config['save']:
         np.save(f"{config['save_loc']}/stellar_component.npy", obs_star_flux.value)
 
@@ -690,10 +688,88 @@ def magnetospheric_component_calculate(config, r_in):
     """Calculte the H-slab component on the fly
     """
 
+    if config['mag_comp']=="hslab":
+        h_flux = get_h_intensity(config)
+        h_minus_flux = get_h_minus_intensity(config)
+        h_slab_flux = (h_flux + h_minus_flux) * u.sr
 
+        # two wavelength regimes are used
+        wav_slab = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), config['n_h']) * u.AA
+        wav2 = np.logspace(np.log10(config['l_max'].value), np.log10(1e6), 250) * u.AA
+
+        # a blackbody SED is a good approximation for the Hydrogen slab beyond l_max (=50000 A)
+        bb_int = BlackBody(temperature=config['t_slab'], scale=1 * u.erg / (u.cm ** 2 * u.s * u.AA * u.sr))
+        bb_spec = bb_int(wav2)
+        bb_spec = bb_spec * u.sr
+        h_slab_flux = np.append(h_slab_flux, bb_spec[1:])
+        wav_slab = np.append(wav_slab, wav2[1:])
+        # calculate the total luminosity to get the area of the shock
+        # this is the approach taken by Liu et al., however  for low accretion rates, this yields a very large covering fraction
+        integrated_flux = trapezoid(h_slab_flux, wav_slab)
+        l_mag = const.G * config['m'] * config['m_dot'] * (1 / config['r_star'] - 1 / r_in)
+        area_shock = l_mag / integrated_flux
+        if config['verbose']:
+            print(f"shock area : {area_shock.si}")
+
+        # shock area fraction warning
+        fraction = (area_shock / (4 * np.pi * config['r_star'] ** 2)).si
+        if config['verbose']:
+            print(f"fraction of area {fraction}")
+        if fraction > 1:
+            if config['save']:
+                with open(f"{config['save_loc']}/details.txt", 'a+') as f:
+                    f.write("WARNING/nTotal area of shock required is more than stellar surface area")
+        
+        # getting the geometry of the shocked region, if it is less than the stellar photosphere area
+        # calculate corresponding theta max and min
+        th_max = np.arcsin(np.sqrt(config['r_star'] / r_in))
+        if area_shock / (4 * np.pi * config['r_star'] ** 2) + np.cos(th_max) > 1:
+            if config['verbose']:
+                print('Theta min not well defined')
+            th_min = 0 * u.rad
+            if config['save']:
+                with open(f"{config['save_loc']}/details.txt", 'a+') as f:
+                    f.write(f"Theta_min not well defined")
+        else:
+            # min required due to high area of magnetosphere in some cases
+            th_min = np.arccos(area_shock / (4 * np.pi * config['r_star'] ** 2) + np.cos(th_max))
+
+        if config['verbose']:
+            print(f"The values are \nth_min : {th_min.to(u.degree)}\nth_max : {th_max.to(u.degree)}")
+        
+        # integrate
+        intg_val1, err = dblquad(cos_gamma_func, th_min.value, th_max.value, 0, 2 * np.pi, args=(config['inclination'].value,))
+        intg_val2, err = dblquad(cos_gamma_func, np.pi - th_max.value, np.pi - th_min.value, 0, 2 * np.pi, args=(config['inclination'].value,))
+        intg_val = intg_val1 + intg_val2
+
+        if config['verbose']:
+            print(f"integral val : {intg_val}, error : {err}")
+
+        if config['save']:
+            with open(f"{config['save_loc']}/details.txt", 'a+') as f:
+                f.write(f"integral val : {intg_val}, error : {err}")
+                f.write(f"The values are \nth_min : {th_min.to(u.degree)}\nth_max : {th_max.to(u.degree)}")
+
+        # interpolate to required wavelength axis,same as the other components
+        func_slab = interp1d(wav_slab, h_slab_flux)
+        wav_ax = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), config['n_data'])
+        h_slab_flux_interp = func_slab(wav_ax)
+        h_slab_flux_interp = h_slab_flux_interp * u.erg / (u.cm ** 2 * u.s * u.AA)
+        obs_mag_flux = h_slab_flux_interp * (config['r_star'] / config['d_star']) ** 2 * intg_val
+
+    if config['plot']:
+        wav_ax = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), config['n_data'])
+        plt.plot(wav_ax, obs_mag_flux)
+        plt.xlabel("Wavelength in $\AA$ ----->")
+        plt.ylabel("Flux [erg / ($cm^{2}$ s $\AA$)] ----->")
+        plt.title("Magnetospheric Shock Region SED")
+        plt.show()
+    
+    return obs_mag_flux
+    
 
 def magnetospheric_component(config, r_in):
-    """Retireve the flux for the H-slab from the stored grid (if H-slab is enabled),
+    """Retrieve the flux for the H-slab from the stored grid (if H-slab is enabled),
     or calculate the magnetospheric component as a blackbody
 
     Parameters
@@ -731,7 +807,7 @@ def magnetospheric_component(config, r_in):
         h_slab_flux = (h_flux + h_minus_flux) * u.erg / (u.cm ** 2 * u.s * u.AA)
 
         # two wavelength regimes are used
-        wav_slab = np.logspace(np.log10(1250), np.log10(5e4), 5000) * u.AA
+        wav_slab = np.logspace(np.log10(1250), np.log10(5e4), 5000) * u.AA ## 1250 is WRONG HARD CODE !!
         wav2 = np.logspace(np.log10(5e4), np.log10(1e6), 250) * u.AA
 
         # a blackbody SED is a good approximation for the Hydrogen slab beyond 50000 Angstroms
@@ -919,9 +995,9 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
         plt.ylabel("Temperature (in Kelvin) ----->")
         plt.title("Dusty Disk Radial Temperature Variation")
         plt.show()
-    #print(t_dust)
+
     dust_flux = np.zeros(n_data) * u.erg / (u.cm * u.cm * u.s * u.AA * u.sr) * (u.m * u.m)
-    wavelength = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data) * u.AA
+    wavelength = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), n_data) * u.AA
     for i in range(len(r_dust) - 1):
         scale_unit = u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)
         dust_bb = BlackBody(t_dust[i], scale=1 * scale_unit)
@@ -1122,7 +1198,7 @@ def main(raw_args=None):
     #garb1, garb2, d = generate_temp_arr_planet(dict_config, 2, 0.03, d)
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
     print('Viscous disk done')
-    obs_mag_flux = magnetospheric_component(dict_config, r_in)
+    obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
     print("Magnetic component done")
     obs_dust_flux = generate_dusty_disk_flux(dict_config, r_in, r_sub)
     print("Dust component done")
@@ -1197,9 +1273,6 @@ def new_contribution():
     plt.ylabel("log_10 Flux (+ offset) [erg / cm^2 s A]")
     plt.legend()
     plt.show()
-#def total_spec():
-
-
 
 if __name__ == "__main__":
     main(raw_args=None)
