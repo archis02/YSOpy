@@ -140,8 +140,6 @@ def get_h_minus_intensity(config_file):
     k_l_arr[:kappa_fb_arr.shape[0]] = kappa_fb_arr
     k_l_arr += kappa_ff_arr
 
-    if config_file['verbose']:
-        print("Len of k_l_arr: ", len(k_l_arr))
     # finding the number density at quantum level n = 2
     # n = 2 we get from the fact that all transitions come and eqm is there at the Balmer level
     # else Lyman alpha emission will be there which is not so favoured? I don't know?

@@ -9,6 +9,7 @@ import emcee
 from configparser import ConfigParser
 import matplotlib.pyplot as plt
 import time
+import pickle
 
 from multiprocessing import Pool
 import os
@@ -63,8 +64,8 @@ def generate_initial_conditions(config_data,n_walkers):
         high = config_data[param + '_u']
 
         #this will generate the initial condition close to middle of the interval
-        initial_conditions[:, i] = np.random.normal(loc = 0.5*(low+high), scale = (high-low)/3, size=n_walkers)
-    
+        #initial_conditions[:, i] = np.random.normal(loc = 0.5*(low+high), scale = (high-low)/5, size=n_walkers)
+        initial_conditions[:,i] = np.random.uniform(low,high,size=n_walkers)
     return initial_conditions
 
 
@@ -83,16 +84,16 @@ def total_spec(theta,wavelength):
     config['m_dot'] = 10**theta[1] * const.M_sun / (1 * u.year).to(u.s) ## Ensure the 10** here
     config['b'] = theta[2] * u.kilogauss
     config['inclination'] = theta[3] * u.degree
-    config['n_e'] = 10**13 * u.cm**-3  ## Ensure the 10** here  # HARD CODE
+    config['n_e'] = 10**theta[4] * u.cm**-3  ## Ensure the 10** here
     config['r_star'] = theta[5] * const.R_sun
     config['t_0'] = theta[6] * u.K
-    config['t_slab'] = 8000 * u.K    # HARD CODE
-    config['tau'] = 1.0   # HARD CODE
+    config['t_slab'] = theta[7] * u.K
+    config['tau'] = theta[8]
     
     #run model
     dr, t_max, d, r_in, r_sub = bf.generate_temp_arr(config)
     wave, obs_viscous_disk_flux = bf.generate_visc_flux(config, d, t_max, dr)
-    obs_mag_flux = bf.magnetospheric_component(config, r_in)
+    obs_mag_flux = bf.magnetospheric_component_calculate(config, r_in)
     obs_dust_flux = bf.generate_dusty_disk_flux(config, r_in, r_sub)
     obs_star_flux = bf.generate_photosphere_flux(config)
     total_flux = bf.dust_extinction_flux(config, wave, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
@@ -102,7 +103,7 @@ def total_spec(theta,wavelength):
     result_spec = func(wavelength)
     result_spec /= np.median(result_spec)
 
-    print(f"model run .. time taken {t_start - time.time()} s")
+    print(f"model run .. time taken {time.time() - t_start} s")
 
     return result_spec
 
@@ -142,25 +143,26 @@ def log_probability(theta): # gives the posterior probability
 
 def main(p0,nwalkers,niter,ndim,lnprob):
 
-    print("Running burn-in...")
+    print("trial4 :Running...")
     with Pool(processes=8) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool)
         start = time.time()
-        sampler.run_mcmc(p0, 100, progress=True)
+        sampler.run_mcmc(p0, niter, progress=True)
         end = time.time()
         multi_time = end - start
         print("Multiprocessing took {0:.1f} seconds".format(multi_time))
 
-        p0 = sampler.get_last_sample(p0, 100)
-        print(p0)    # test line
-        sampler.reset()
+        #p0 = sampler.get_last_sample(p0, 10)
+        #print(p0)    # test line
+        #sampler.reset()
 
-        print("Running production...")
+        #print("Running production...")
 
-        sampler.run_mcmc(p0, niter, progress=True)
+        #sampler.run_mcmc(p0, niter, progress=True)
     
     # get the chain
-    params = sampler.get_chain(flat=True)
+    print("getting chain ... ")
+    params = sampler.get_chain()
 
     return params
 
@@ -173,12 +175,12 @@ data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.media
 wavelengths_air = wave.vactoair(data[0]*u.AA)
 data[0] = wavelengths_air
 
-plt.plot(data[0],data[1])
-plt.show()
+#plt.plot(data[0],data[1])
+#plt.show()
 
 n_params = 9 # number of parameters that are varying
-nwalkers = 20
-niter = 200
+nwalkers = 18
+niter = 10
 
 # generate initial conditions
 config_data = config_reader('mcmc_config.cfg')
@@ -186,4 +188,6 @@ p0 = generate_initial_conditions(config_data, nwalkers)
 #print(f"initial conditions {p0}")
 
 params = main(p0,nwalkers,niter,n_params,log_probability)
+np.save("params_1.npy",params)
+
 print("completed")
