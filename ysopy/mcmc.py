@@ -9,7 +9,6 @@ import emcee
 from configparser import ConfigParser
 import matplotlib.pyplot as plt
 import time
-import pickle
 
 from multiprocessing import Pool
 import os
@@ -56,6 +55,9 @@ def config_reader(filepath):
 
 
 def generate_initial_conditions(config_data,n_walkers):
+
+    np.random.seed(123456)
+    
     params = ['m', 'log_m_dot', 'b', 'inclination',  'log_n_e', 'r_star', 't_0', 't_slab', 'tau']
     initial_conditions = np.zeros((n_walkers, n_params))
 
@@ -180,7 +182,7 @@ data[0] = wavelengths_air
 
 n_params = 9 # number of parameters that are varying
 nwalkers = 18
-niter = 10
+niter = 100
 
 # generate initial conditions
 config_data = config_reader('mcmc_config.cfg')

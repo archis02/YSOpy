@@ -18,6 +18,8 @@ from utils import config_read
 from h_emission import get_h_intensity
 from h_minus_emission import get_h_minus_intensity
 
+from functools import cache
+
 # config_read
 '''
 def config_read(path):
@@ -77,6 +79,9 @@ def config_read(path):
     return dict_config
 '''
 
+@cache
+def load_npy_file(address):
+    return np.load(address)
 
 def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     """read the stored BT-Settl model spectra from .npy format, for the supplied temperature and logg values
@@ -118,7 +123,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     else:
         address = f"{loc}/lte0{temperature}-{logg}-0.0.BT-Settl.7.dat.npy"
     
-    data = np.load(address)
+    data = load_npy_file(address)
 
     # trim data to region of interest
     # extra region left for re-interpolation
@@ -137,7 +142,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     # for faulty data make a linear re-interpolation
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
-        f = interp1d(x, y)
+        f = interp1d(x, y, kind="linear")
         trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, config['n_data'], endpoint=True) * u.AA
         trimmed_flux = f(trimmed_wave) * u.erg / (u.cm * u.cm * u.s * u.AA)
 
