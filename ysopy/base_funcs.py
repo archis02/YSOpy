@@ -19,65 +19,8 @@ from h_emission import get_h_intensity
 from h_minus_emission import get_h_minus_intensity
 
 from functools import cache
+import logging
 
-# config_read
-'''
-def config_read(path):
-    """Read data from config file and cast to expected data types
-
-    Parameters
-    ----------
-    path : str
-        path to the config file
-
-    Returns
-    ----------
-    dict_config : dict
-        dictionary containing the parameters of the system in the expected units
-    """
-    config = ConfigParser()
-    config.read(path)
-    config_data = config['Parameters']
-    dict_config = dict(config_data)
-
-    # convert to the required astropy units
-    dict_config["l_min"] = float(dict_config["l_min"]) * u.AA
-    dict_config["l_max"] = float(dict_config["l_max"]) * u.AA
-    dict_config["n_data"] = int(dict_config["n_data"])
-
-    dict_config["b"] = float(dict_config["b"]) * u.kilogauss
-    dict_config["m"] = float(dict_config["m"]) * const.M_sun
-    dict_config["m_dot"] = float(dict_config["m_dot"]) * const.M_sun / (1 * u.year).to(u.s)
-    dict_config["r_star"] = float(dict_config["r_star"]) * const.R_sun
-    dict_config["inclination"] = float(dict_config["inclination"]) * u.degree
-    dict_config["n_disk"] = int(dict_config["n_disk"])
-    dict_config["n_dust_disk"] = int(dict_config["n_dust_disk"])
-    dict_config["d_star"] = float(dict_config["d_star"]) * const.pc
-    dict_config["t_star"] = float(dict_config["t_star"]) * u.K
-    dict_config["log_g_star"] = float(dict_config["log_g_star"])
-    dict_config["t_0"] = float(dict_config["t_0"]) * u.K
-    dict_config["av"] = float(dict_config["av"])
-    dict_config["rv"] = float(dict_config["rv"])
-    dict_config["l_0"] = float(dict_config["l_0"]) * u.AA
-    dict_config["t_slab"] = float(dict_config["t_slab"]) * u.K
-    dict_config["n_e"] = float(dict_config["n_e"]) * u.cm ** (-3)
-    dict_config["tau"] = float(dict_config["tau"])
-    dict_config["n_h"] = int(dict_config["n_h"])
-    dict_config["l_l_slab"] = float(dict_config["l_l_slab"]) * u.AA
-    dict_config["n_h_minus"] = int(dict_config["n_h_minus"])
-    
-    for param in ["save", "save_each", "plot", "save_grid_data", "verbose"]:
-        if dict_config[param] == "True":
-            dict_config[param] = True
-        elif dict_config[param] == "False":
-            dict_config[param] = False
-
-    if dict_config['save']:
-        with open(f"{dict_config['save_loc']}/details.txt", 'a+') as f:
-            f.write(str(dict_config))
-
-    return dict_config
-'''
 
 @cache
 def load_npy_file(address):
@@ -693,6 +636,10 @@ def magnetospheric_component_calculate(config, r_in):
     """Calculte the H-slab component on the fly
     """
 
+    if r_in<config["r_star"]:
+        spec = np.zeros(config["n_data"]) * u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)
+        return spec
+
     ###########################    HYDROGEN SLAB    #############################
     if config['mag_comp']=="hslab":
         h_flux = get_h_intensity(config)
@@ -1231,15 +1178,32 @@ def contribution(raw_args=None): ## check what this function does, move it to a 
 
 
 def total_spec(dict_config):
+
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(filename='timer_bf.log', encoding='utf-8', level=logging.DEBUG)
+    logger.info(str(dict_config))
+    
+    t1 = time.time()
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
-    print('Viscous disk done')
+    t2 = time.time()
+    logger.info(f'Viscous disk done, time taken : {t2 - t1}')
+    print(f'Viscous disk done, time taken : {t2 - t1}')
+
     obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
-    print("Magnetic component done")
+    t3 = time.time()
+    logger.info(f"Magnetic component done, time taken :{t3-t2}")
+    print(f"Magnetic component done, time taken :{t3-t2}")
+
     obs_dust_flux = generate_dusty_disk_flux(dict_config, r_in, r_sub)
-    print("Dust component done")
+    t4 = time.time()
+    logger.info(f"Dust component done, time taken : {t4-t3}")
+    print(f"Dust component done, time taken : {t4-t3}")
+
     obs_star_flux = generate_photosphere_flux(dict_config)
-    print("Photospheric component done")
+    t5 = time.time()
+    logger.info(f"Photospheric component done, time taken {t5-t4}")
+    print(f"Photospheric component done, time taken {t5-t4}")
     total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
     return wavelength, total_flux
@@ -1261,7 +1225,11 @@ def main(raw_args=None):
     obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
     if dict_config["verbose"]:
         print("Magnetic component done")
+
+    dust_st = time.time()
     obs_dust_flux = generate_dusty_disk_flux(dict_config, r_in, r_sub)
+    print(f"time taken for dust = {time.time() -dust_st}")
+
     if dict_config["verbose"]:
         print("Dust component done")
     obs_star_flux = generate_photosphere_flux(dict_config)
@@ -1339,4 +1307,5 @@ def new_contribution(): # check what this function does. ideally, move it to a d
     plt.show()
 
 if __name__ == "__main__":
-    main(raw_args=None)
+    conf = config_read("config_file.cfg")
+    total_spec(conf)

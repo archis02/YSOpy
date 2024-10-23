@@ -158,7 +158,6 @@ def get_h_minus_intensity(config_file):
 
     #to get l_slab, we need the calculation from the H emission
     l_slab = get_l_slab(config_file)
-    print("slab length: ", l_slab)
     tau_v_arr_h_minus = kappa_h_l_tot * l_slab
     beta_h_minus_v_arr = (1 - np.exp(-tau_v_arr_h_minus)) / tau_v_arr_h_minus
     intensity_h_minus_l = j_h_minus_l * l_slab * beta_h_minus_v_arr
