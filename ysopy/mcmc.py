@@ -17,7 +17,7 @@ import logging
 os.environ["OMP_NUM_THREADS"] = "1"
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='mcmc.log', encoding='utf-8', level=logging.DEBUG)
-
+np.seterr(all="ignore")
 
 def config_reader(filepath):
     """
@@ -113,14 +113,14 @@ def total_spec(theta,wavelength):
     result_spec = func(wavelength)
     result_spec /= np.median(result_spec)
 
-    #logger.info(f"params {theta}")
+    logger.info(f"params {theta}")
     logger.info(f"visc disk time : {t1-t0}")
     logger.info(f"magnetosphere time : {t2-t1}")
     logger.info(f"dust disk time : {t3-t2}")
     logger.info(f"photosphere time : {t4-t3}")
     logger.info(f"model run .. time taken {t5 - t0} s,\n params {str(theta)}")
 
-    print(f"model run .. time taken {t5 - t0} s")
+    print(f"model run ..") #time taken {t5 - t0} s")
 
     return result_spec
 
@@ -161,22 +161,14 @@ def log_probability(theta): # gives the posterior probability
 def main(p0,nwalkers,niter,ndim,lnprob):
 
     print("trial4 :Running...")
+    #start = time.time()
     with Pool(processes=8) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool)
-        start = time.time()
         sampler.run_mcmc(p0, niter, progress=True)
-        end = time.time()
-        multi_time = end - start
+    #end = time.time()
+    #multi_time = end - start
     #print("single core took {0:.1f} seconds".format(multi_time))
-    print("Multiprocessing took {0:.1f} seconds".format(multi_time))
-
-        #p0 = sampler.get_last_sample(p0, 10)
-        #print(p0)    # test line
-        #sampler.reset()
-
-        #print("Running production...")
-
-        #sampler.run_mcmc(p0, niter, progress=True)
+    #print("Multiprocessing took {0:.1f} seconds".format(multi_time))
     
     # get the chain
     print("getting chain ... ")
@@ -196,26 +188,26 @@ data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.media
 wavelengths_air = wave.vactoair(data[0]*u.AA)
 data[0] = wavelengths_air
 
-#plt.plot(data[0],data[1])
-#plt.show()
+plt.plot(data[0],data[1])
+plt.show()
 
 n_params = 9 # number of parameters that are varying
 nwalkers = 18
-niter = 5
+niter = 200
 
-# check time for a single run
-theta_single = [ 9.07512872e-01, -5.52898504e+00,  9.54918486e-01,  8.07599932e+01,
-  1.19549089e+01,  1.81773937e+00,  3.64877939e+03,  7.83981861e+03,
-  1.05022562e+00]
-logger.info("Single spec run")
-total_spec(theta_single, data[0]*u.AA)
+#check time for a single run
+# theta_single = [ 5.03197142e-01, -4.03054252e+00,  9.68469043e-01 , 1.20689315e+01,
+#   1.26199606e+01,  1.81237601e+00,  3.82239928e+03 , 7.06072326e+03,
+#   1.01185058e+00]
+# logger.info("Single spec run")
+# total_spec(theta_single, data[0]*u.AA)
 
 
 # generate initial conditions
-# config_data = config_reader('mcmc_config.cfg')
-# p0 = generate_initial_conditions(config_data, nwalkers)
+config_data = config_reader('mcmc_config.cfg')
+p0 = generate_initial_conditions(config_data, nwalkers)
 
-# params = main(p0,nwalkers,niter,n_params,log_probability)
-# np.save("params_1.npy",params)
+params = main(p0,nwalkers,niter,n_params,log_probability)
+np.save("params_1.npy",params)
 
 print("completed")

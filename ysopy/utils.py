@@ -1,7 +1,9 @@
 from configparser import ConfigParser
 import astropy.units as u
 import astropy.constants as const
+from functools import cache
 
+@cache
 def config_read(path):
     """Read data from config file and cast to expected data types
 
