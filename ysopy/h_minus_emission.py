@@ -6,7 +6,7 @@ import astropy.constants as const
 import astropy.units as u
 import os
 #from utils import config_read
-from h_emission import get_l_slab
+from . import h_emission
 
 # define the constants
 c = const.c
@@ -157,7 +157,7 @@ def get_h_minus_intensity(config_file):
     j_h_minus_l = j_h_minus_l.to(u.erg / (u.AA * u.s * u.sr * u.cm ** 3))
 
     #to get l_slab, we need the calculation from the H emission
-    l_slab = get_l_slab(config_file)
+    l_slab = h_emission.get_l_slab(config_file)
     tau_v_arr_h_minus = kappa_h_l_tot * l_slab
     beta_h_minus_v_arr = (1 - np.exp(-tau_v_arr_h_minus)) / tau_v_arr_h_minus
     intensity_h_minus_l = j_h_minus_l * l_slab * beta_h_minus_v_arr
