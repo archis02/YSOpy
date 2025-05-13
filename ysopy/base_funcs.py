@@ -3,13 +3,14 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.integrate import dblquad
 from scipy.integrate import trapezoid
-from scipy.interpolate import interp1d
+# from scipy.interpolate import interp1d
 import astropy.constants as const
 import astropy.units as u
 from astropy.io.votable import parse
 from astropy.modeling.physical_models import BlackBody
 from dust_extinction.parameter_averages import F19
 from dust_extinction.averages import G21_MWAvg
+from pypeit.core import wave
 
 from . import utils
 from . import h_emission
@@ -19,7 +20,39 @@ import argparse
 import time
 from functools import cache
 import logging
+import warnings
 
+
+def calculate_n_data(config): # also choose l_0
+
+    # the chosen temperature and logg is the BT Settl model that had highest sampling.
+    # It is recommended to check your photosphere models and choose accordingly.
+    temperature = 16
+    logg = 3.5
+
+    loc = config['bt_settl_path']
+    l_min = config['l_min']
+    l_max = config['l_max']
+
+    if temperature >= 100:
+        address = f"{loc}/lte{temperature}-{logg}-0.0a+0.0.BT-Settl.7.dat.npy"
+    elif (temperature > 25) and temperature < 100:
+        address = f"{loc}/lte0{temperature}-{logg}-0.0a+0.0.BT-Settl.7.dat.npy"
+    elif (temperature >= 20) and temperature < 100:
+        address = f"{loc}/lte0{temperature}-{logg}-0.0.BT-Settl.7.dat.npy"
+    else:
+        address = f"{loc}/lte0{temperature}-{logg}-0.0.BT-Settl.7.dat.npy"
+    data = np.load(address)
+    
+    l_pad = 50 # excess padding to ensure that sampling is high enough
+    cond1 = l_min.value - 1.5 * l_pad < data[0]
+    cond2 = data[0] < l_max.value + 1.5 * l_pad
+    trimmed_ids = np.logical_and(cond1,cond2)
+    trimmed_wave = data[0][trimmed_ids].astype(np.float64)
+
+    # overwrite the config dictionary
+    config['n_data'] = trimmed_wave.shape[0]
+    config['l_0'] = (config['l_min'] + config['l_max']) * 0.5 ############# choice of l_0 ##################
 
 @cache
 def load_npy_file(address):
@@ -81,12 +114,12 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     trimmed_wave = data[0][trimmed_ids].astype(np.float64) * u.AA
     trimmed_flux = data[1][trimmed_ids].astype(np.float64) * (u.erg / (u.cm * u.cm * u.s * u.AA))
 
-    # for faulty data make a linear re-interpolation
+    # for low-resolution data, make a linear re-interpolation
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
-        f = interp1d(x, y, kind="linear")
+        # f = interp1d(x, y, kind="linear")
         trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, config['n_data'], endpoint=True) * u.AA
-        trimmed_flux = f(trimmed_wave) * u.erg / (u.cm * u.cm * u.s * u.AA)
+        trimmed_flux = np.interp(trimmed_wave, x, y) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
     return trimmed_wave, trimmed_flux
 
@@ -152,9 +185,9 @@ def read_bt_settl(config, temperature: int, logg: float, r_in=None):
     # for faulty data make a linear re-interpolation
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
-        f = interp1d(x, y)
+        # f = interp1d(x, y)
         trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, n_data, endpoint=True) * u.AA
-        trimmed_flux = f(trimmed_wave) * u.erg / (u.cm * u.cm * u.s * u.AA)
+        trimmed_flux = np.interp(trimmed_wave, x, y) * u.erg / (u.cm * u.cm * u.s * u.AA)
         # trimmed_data = ma.array([x, y], dtype=[('WAVELENGTH', 'float'), ('FLUX', 'float')])
     return trimmed_wave, trimmed_flux
 
@@ -181,9 +214,9 @@ def unif_reinterpolate(config, x, y, l_pad):
     l_min = config['l_min']
     l_max = config['l_max']
     n_data = config['n_data']
-    f = interp1d(x, y)
+    # f = interp1d(x, y)
     wav = np.linspace(l_min.value - 1.2 * l_pad, l_max.value + 1.2 * l_pad, n_data, endpoint=True) * u.AA
-    return wav, (f(wav) * u.erg / (u.cm * u.cm * u.s * u.AA))
+    return wav, np.interp(wav, x, y) #* u.erg / (u.cm * u.cm * u.s * u.AA))
 
 
 def interpolate_conv(config, wavelength, flux, sampling, v_red):
@@ -222,18 +255,19 @@ def interpolate_conv(config, wavelength, flux, sampling, v_red):
     wavelength_log = np.logspace(x_log[0], x_log[-1], int(n_points))
     wavelength_log = np.extract(wavelength_log > l_min.value - 5, wavelength_log)
     wavelength_log = np.extract(wavelength_log < l_max.value + 5, wavelength_log)
-    f_log = interp1d(wavelength, flux)
-    flux_interpolated = f_log(wavelength_log)
+    
+    # this line must be done on a small axis (subset) to save time
+    flux_interpolated = np.interp(wavelength_log, wavelength.value, flux) #* u.erg / (u.cm**2 * u.s * u.AA)
 
-    # determine number of points to be taken in kernel
+    # determine the exact number of points to be taken in kernel
     l_around = np.extract(wavelength_log > (l0 * (1 - v_red)), wavelength_log)
     l_around = np.extract(l_around < (l0 * (1 + v_red)), l_around)
-    kernel_length = (len(l_around) // 2) * 2 + 1  # this gives the number of data points in the kernel
+    kernel_length = (len(l_around) // 2) * 2 + 1  # odd number to ensure  symmetry
 
     return kernel_length, wavelength_log, flux_interpolated
 
 
-def logspace_reinterp(config, wavelength, flux):
+def logspace_reinterp(config, wavelength, flux, vacuum=None):
     """interpolates the given wavelength-flux data and interpolates to a logarithmic axis in the wavelength,
     used to convert all the SEDs to a common wavelength axis, so that they can be added
 
@@ -242,26 +276,29 @@ def logspace_reinterp(config, wavelength, flux):
     config : dict
         dictionary containing system parameters
 
-    wavelength : astropy.units.Quantity
+    wavelength : numpy.ndarray
         wavelength array
 
-    flux : astropy.units.Quantity or numpy.ndarray
+    flux : numpy.ndarray
         flux array to be interpolated
+
+    vacuum: bool
+        switch to control interpolation in air or vacuum
 
     Returns
     ----------
-    wavelength_req : astropy.units.Quantity
+    wavelength_req : numpy.ndarray
         new wavelength axis
 
-    flux_final : astropy.units.Quantity
+    flux_final : numpy.ndarray
         interpolated flux array
     """
     l_min = config['l_min']
     l_max = config['l_max']
     n_data = config['n_data']
-    f = interp1d(wavelength, flux)
+    # f = interp1d(wavelength, flux)
     wavelength_req = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data)
-    flux_final = f(wavelength_req) * u.erg / (u.cm * u.cm * u.s * u.AA)
+    flux_final = np.interp(wavelength_req, wavelength, flux) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
     return wavelength_req, flux_final
 
@@ -306,7 +343,9 @@ def generate_kernel(config: dict, sampling: int, v_red: u.Quantity):
 
     # since data is uniformly sampled in log wavelength space, kernel has to be done similarly
     log_ax = np.logspace(np.log10(l0 * (1 - v_red.value)), np.log10(l0 * (1 + v_red.value)), sampling, endpoint=False)
-    kernel_arr = ma.masked_invalid(ker(log_ax, l0, l0 * v_red))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        kernel_arr = ma.masked_invalid(ker(log_ax, l0, l0 * v_red))
     kernel_arr = ma.filled(kernel_arr, 0)
     # log_ax = np.delete(log_ax,0)
     kernel_arr = np.delete(kernel_arr, 0)
@@ -516,18 +555,24 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
     d_star = config['d_star']
     inclination = config['inclination']
     m = config['m']
+    #change air to vac
     l_min = config['l_min']
+    l_min = wave.vactoair(l_min)
     l_max = config['l_max']
+    l_max = wave.vactoair(l_max)
     n_data = config['n_data']
+
     viscous_disk_flux = np.zeros(n_data) * (u.erg * u.m ** 2 / (u.cm ** 2 * u.s * u.AA))  # total number of data points
 
     for int_temp in range(t_max, 13, -1):
+
         # to store total flux contribution from annuli of this temperature
         temp_flux = np.zeros(n_data) * (u.erg / (u.s * u.AA))
 
         radii = np.array([r for r, t in d.items() if t == int_temp])
         radii = radii * u.m
         radii = sorted(radii, reverse=True)
+        # print(len(radii))
 
         if int_temp in range(14, 20):  # constrained by availability of BT-Settl models
             logg = 3.5
@@ -538,21 +583,31 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
             wavelength, flux = read_bt_settl_npy(config, int_temp, logg, r_in)
 
         for r in radii:
+
             if inclination.value == 0:
-                x_throw, y_final = logspace_reinterp(config, wavelength, flux)
+                x_throw, y_final = logspace_reinterp(config, wavelength.value, flux.value)
+
             else:
                 v_kep = np.sqrt(const.G * m / r)
-                v_red = v_kep * np.sin(inclination) / const.c
+                v_red = (v_kep * np.sin(inclination) / const.c).si
+
+                ############################################################################
+                ############        Hard code       ########################################
+                ############################################################################
+
                 interp_samp, wavelength_new, flux_new = interpolate_conv(config, wavelength, flux, 100, v_red)
                 kernel = generate_kernel(config, interp_samp, v_red)
-
+                # print(f"kernel array {kernel}\nflux array {flux_new}")
                 convolved_spectra = np.convolve(flux_new, kernel, mode="same")
-
                 x_throw, y_final = logspace_reinterp(config, wavelength_new, convolved_spectra)
+
                 if save_each:
                     np.save(f'{save_loc}/radius_{r}_flux.npy', y_final.value)
+            
             temp_flux += y_final * np.pi * (2 * r * dr + dr ** 2)
+
         viscous_disk_flux += temp_flux
+
         if config['verbose']:
             print("completed for temperature of", int_temp, "\nnumber of rings included:", len(radii))
         if save:
@@ -571,6 +626,9 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
         plt.title("Viscous Disk SED")
         plt.show()
 
+    #change wavelength axis to vacuum
+    wavelength = wave.airtovac(wavelength)
+
     return wavelength, obs_viscous_disk_flux
 
 
@@ -588,7 +646,10 @@ def generate_photosphere_flux(config):
         flux array due to the stellar photosphere
     """
     l_min = config['l_min']
+    l_min = wave.vactoair(l_min)
     l_max = config['l_max']
+    l_max = wave.vactoair(l_max)
+
     log_g_star = config['log_g_star']
     t_star = config["t_star"]
     r_star = config["r_star"]
@@ -605,9 +666,9 @@ def generate_photosphere_flux(config):
     cond2 = data[0] < l_max.value + 10
     trimmed_ids = np.logical_and(cond1,cond2)
     x2 = data[0][trimmed_ids].astype(np.float64)
-    y2 = data[1][trimmed_ids].astype(np.float64)
+    y2 = data[1][trimmed_ids].astype(np.float64) * u.erg / (u.s * u.cm**2 * u.AA)
 
-    wavelength, y_new_star = logspace_reinterp(config, x2, y2)
+    wavelength, y_new_star = logspace_reinterp(config, x2, y2, vacuum=True)
     obs_star_flux = y_new_star * (r_star.si / d_star.si) ** 2
 
     if config['plot']:
@@ -633,12 +694,14 @@ def cos_gamma_func(phi, theta, incl):
     else:
         return cos_gamma * np.sin(theta)
 
+
 def magnetospheric_component_calculate(config, r_in):
     """Calculte the H-slab component on the fly
     """
 
     if r_in<config["r_star"]:
         spec = np.zeros(config["n_data"]) * u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)
+        print("High accretion, no magnetospheric contribution")
         return spec
 
     ###########################    HYDROGEN SLAB    #############################
@@ -704,10 +767,10 @@ def magnetospheric_component_calculate(config, r_in):
                 f.write(f"The values are \nth_min : {th_min.to(u.degree)}\nth_max : {th_max.to(u.degree)}")
 
         # interpolate to required wavelength axis,same as the other components
-        func_slab = interp1d(wav_slab, h_slab_flux)
-        wav_ax = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), config['n_data'])
-        h_slab_flux_interp = func_slab(wav_ax)
-        h_slab_flux_interp = h_slab_flux_interp * u.erg / (u.cm ** 2 * u.s * u.AA)
+        # func_slab = interp1d(wav_slab, h_slab_flux)
+        wav_ax = np.logspace(np.log10(config['l_min'].value), np.log10(config['l_max'].value), config['n_data']) * u.AA
+        h_slab_flux_interp = np.interp(wav_ax, wav_slab, h_slab_flux)
+        # h_slab_flux_interp = h_slab_flux_interp * u.erg / (u.cm ** 2 * u.s * u.AA)
         obs_mag_flux = h_slab_flux_interp * (config['r_star'] / config['d_star']) ** 2 * intg_val
 
     ###########################    BLACKBODY    ###################################
@@ -775,156 +838,7 @@ def magnetospheric_component_calculate(config, r_in):
         plt.show()
     
     return obs_mag_flux
-    
-'''
-NOT REQUIRED ANYMORE
-def magnetospheric_component(config, r_in):
-    """Retrieve the flux for the H-slab from the stored grid (if H-slab is enabled),
-    or calculate the magnetospheric component as a blackbody
 
-    Parameters
-    ----------
-    config : dict
-             dictionary containing system parameters
-
-    r_in : float
-        Inner truncation radius of the viscously heated disk
-
-    Returns
-    ----------
-    obs_mag_flux : astropy.units.Quantity
-        flux due to the magnetospheric accretion of the YSO
-    """
-
-    t_slab = config['t_slab']
-    tau = config['tau']
-    n_e = config['n_e']
-    inclination = config['inclination']
-    m = config['m']
-    m_dot = config['m_dot']
-    r_star = config['r_star']
-    d_star = config['d_star']
-    l_min = config['l_min']
-    l_max = config['l_max']
-    n_data = config['n_data']
-    save = config["save"]
-    plot = config["plot"]
-
-    # retrieve the stored H-slab flux from the saved location
-    if config['mag_comp'] == "hslab":
-        h_flux = np.load(f"{config['h_grid_path']}/temp_{int(t_slab.value)}_tau_{np.round(tau, 1)}_len_{config['n_h']}/Flux_wav.npy")
-        h_minus_flux = np.load(f"{config['h_min_grid_path']}/temp_{int(t_slab.value)}_tau_{np.round(tau, 1)}_e{int(np.log10(n_e.value))}_len_{config['n_h_minus']}/Flux_wav.npy")
-        h_slab_flux = (h_flux + h_minus_flux) * u.erg / (u.cm ** 2 * u.s * u.AA)
-
-        # two wavelength regimes are used
-        wav_slab = np.logspace(np.log10(1250), np.log10(5e4), 5000) * u.AA ## 1250 is WRONG HARD CODE !!
-        wav2 = np.logspace(np.log10(5e4), np.log10(1e6), 250) * u.AA
-
-        # a blackbody SED is a good approximation for the Hydrogen slab beyond 50000 Angstroms
-        bb_int = BlackBody(temperature=t_slab, scale=1 * u.erg / (u.cm ** 2 * u.s * u.AA * u.sr))
-        bb_spec = bb_int(wav2)
-        bb_spec = bb_spec * u.sr
-        h_slab_flux = np.append(h_slab_flux, bb_spec[1:])
-        wav_slab = np.append(wav_slab, wav2[1:])
-        # calculate the total luminosity to get the area of the shock
-        # this is the approach taken by Liu et al., however  for low accretion rates, this yields a very large covering fraction
-        integrated_flux = trapezoid(h_slab_flux, wav_slab)
-        l_mag = const.G * m * m_dot * (1 / r_star - 1 / r_in)
-        area_shock = l_mag / integrated_flux
-        if config['verbose']:
-            print(f"shock area : {area_shock.si}")
-
-    elif config['mag_comp'] == 'blackbody':
-        l_mag = const.G * m * m_dot * (1 / r_star - 1 / r_in)
-        area_shock = l_mag / (const.sigma_sb * t_slab ** 4)  # allowing the effective temperature of the shock to vary
-    else:
-        raise ValueError("Only accepted magnetosphere models are \'blackbody\' and \'hslab\'")
-
-    # shock area fraction warning
-    fraction = (area_shock / (4 * np.pi * r_star ** 2)).si
-    if config['verbose']:
-        print(f"fraction of area {fraction}")
-    if fraction > 1:
-        if save:
-            with open(f"{config['save_loc']}/details.txt", 'a+') as f:
-                f.write("WARNING/nTotal area of shock required is more than stellar surface area")
-    else:
-        if save:
-            with open(f"{config['save_loc']}//details.txt", 'a+') as f:
-                f.write(f"ratio of area of shock to stellar surface area =  {fraction}")
-
-    # getting the geometry of the shocked region, if it is less than the stellar photosphere area
-    # calculate corresponding theta max and min
-    th_max = np.arcsin(np.sqrt(r_star / r_in))
-    if area_shock / (4 * np.pi * r_star ** 2) + np.cos(th_max) > 1:
-        if config['verbose']:
-            print('Theta min not well defined')
-        th_min = 0 * u.rad
-
-        if save:
-            with open(f"{config['save_loc']}/details.txt", 'a+') as f:
-                f.write(f"Theta_min not well defined")
-    else:
-        # min required due to high area of magnetosphere in some cases
-        th_min = np.arccos(area_shock / (4 * np.pi * r_star ** 2) + np.cos(th_max))
-
-    if config['verbose']:
-        print(f"The values are \nth_min : {th_min.to(u.degree)}\nth_max : {th_max.to(u.degree)}")
-    # integrate
-    intg_val1, err = dblquad(cos_gamma_func, th_min.value, th_max.value, 0, 2 * np.pi, args=(inclination.value,))
-    intg_val2, err = dblquad(cos_gamma_func, np.pi - th_max.value, np.pi - th_min.value, 0, 2 * np.pi, args=(inclination.value,))
-    intg_val = intg_val1 + intg_val2
-    if config['verbose']:
-        print(f"integral val : {intg_val}, error : {err}")
-
-    if save:
-        with open(f"{config['save_loc']}/details.txt", 'a+') as f:
-            f.write(f"integral val : {intg_val}, error : {err}")
-            f.write(f"The values are \nth_min : {th_min.to(u.degree)}\nth_max : {th_max.to(u.degree)}")
-
-    if config['mag_comp'] == "hslab":
-        # retrieve stored H_slab SEDs
-        h_flux = np.load(
-            f"{config['h_grid_path']}/temp_{int(t_slab.value)}_tau_{np.round(tau, 1)}_len_{config['n_h']}/Flux_wav.npy")
-        h_minus_flux = np.load(
-            f"{config['h_min_grid_path']}/temp_{int(t_slab.value)}_tau_{np.round(tau, 1)}_e{int(np.log10(n_e.value))}_len"
-            f"_{config['n_h_minus']}/Flux_wav.npy")
-        h_slab_flux = (h_flux + h_minus_flux)
-
-        wav_slab = np.logspace(np.log10(1250), np.log10(5e4), config['n_h'])  # this is defined in the H-slab databases
-
-        # interpolate to required wavelength axis,same as the other components
-        func_slab = interp1d(wav_slab, h_slab_flux)
-        wav_ax = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data)
-        h_slab_flux_interp = func_slab(wav_ax)
-        h_slab_flux_interp = h_slab_flux_interp * u.erg / (u.cm ** 2 * u.s * u.AA)
-        obs_mag_flux = h_slab_flux_interp * (r_star / d_star) ** 2 * intg_val
-
-    elif config['mag_comp'] == "blackbody":
-        # calculate blackbody spectrum, defined at a temperature t_slab
-        scale_unit = u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)
-        bb = BlackBody(t_slab, scale=1 * scale_unit)
-        wavelength = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data) * u.AA
-        flux_bb = bb(wavelength)
-
-        obs_bb_flux = flux_bb * (r_star / d_star) ** 2 * intg_val
-        obs_mag_flux = obs_bb_flux.to(1 * u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)) * u.sr
-    else:
-        raise ValueError("Only accepted magnetosphere models are \'blackbody\' and \'hslab\'")
-
-    if plot:
-        wav_ax = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data)
-        plt.plot(wav_ax, obs_mag_flux)
-        plt.xlabel("Wavelength in $\AA$ ----->")
-        plt.ylabel("Flux [erg / ($cm^{2}$ s $\AA$)] ----->")
-        plt.title("Magnetospheric Shock Region SED")
-        plt.show()
-
-    if save:
-        np.save(f"{config['save_loc']}/mag_component.npy", obs_mag_flux.value)
-
-    return obs_mag_flux
-'''
 
 def t_eff_dust(r, config):
     """Define the temperature profile in the passively heated dusty disk
@@ -1009,7 +923,9 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
     for i in range(len(r_dust) - 1):
         scale_unit = u.erg / (u.cm ** 2 * u.s * u.AA * u.sr)
         dust_bb = BlackBody(t_dust[i], scale=1 * scale_unit)
-        dust_bb_flux = dust_bb(wavelength)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            dust_bb_flux = dust_bb(wavelength)
         dust_flux += dust_bb_flux * np.pi * (r_dust[i + 1] ** 2 - r_dust[i] ** 2)
         if i % 100 == 0:  # print progress after every 100 annuli
             #print(r_dust[i])
@@ -1096,6 +1012,7 @@ def total_spec(dict_config):
     logger.info(str(dict_config))
     
     t1 = time.time()
+    calculate_n_data(dict_config) # set n_data
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
     t2 = time.time()
@@ -1127,12 +1044,16 @@ def main(raw_args=None):
     st = time.time()
     args = parse_args(raw_args)
     dict_config = utils.config_read(args.ConfigfileLocation)
+    calculate_n_data(dict_config) # set n_data
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
 
     # control line for planetesimal
     # garb1, garb2, d = generate_temp_arr_planet(dict_config, 2, 0.03, d)
 
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
+
+    # save with noise
+
     if dict_config["verbose"]:
         print('Viscous disk done')
     obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
@@ -1148,7 +1069,7 @@ def main(raw_args=None):
     obs_star_flux = generate_photosphere_flux(dict_config)
     if dict_config["verbose"]:
         print("Photospheric component done")
-    # total_flux = obs_viscous_disk_flux + obs_star_flux + obs_mag_flux + obs_dust_flux
+    total_flux = obs_viscous_disk_flux + obs_star_flux + obs_mag_flux + obs_dust_flux
     total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
 
@@ -1167,9 +1088,36 @@ def main(raw_args=None):
 
     print("done")
 
+def rad_vel_correction(wave, vel):
+    """
+    Apply correction to wavelength for the doppler shift due to
+    radial velocity of the star.
+    :param wave: Quantity numpy array
+    :param vel: astropy.units.Quantity
+    :return: astropy.units.Quantity array
+    """
+    del_wav = (vel/const.c) * wave
+    return wave - del_wav
 
-'''
+
 if __name__ == "__main__":
-    conf = utils.config_read("config_file.cfg")
-    total_spec(conf)
-'''
+
+    main()
+
+'''from pypeit.core import wave
+from astropy.io import ascii
+
+#read the data, V960 Mon
+path_to_valid = "../../../../validation_files/"
+data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+
+#vac to air correction for given data
+wavelengths_air = wave.vactoair(data[0]*u.AA)
+data[0] = rad_vel_correction(wavelengths_air, -40.3 * u.km / u.s)# from header file
+plt.plot(data[0],data[1])
+plt.show()
+
+dict_config = utils.config_read("config_file.cfg")
+dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
+wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)'''

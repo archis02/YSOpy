@@ -6,17 +6,20 @@ import astropy.units as u
 from astropy.io import ascii
 from mcmc import total_spec
 import sys
+import warnings
 
-arr = np.load("params_less_04112024.npy")
+warnings.filterwarnings( "ignore", module = "matplotlib\..*" )
+
+arr = np.load("04112024_v960_1000it.npy")
 n_params = 5
 n_walkers = 10
-steps = 200
+steps = 1000
 x = np.zeros(shape=(steps*n_walkers,n_params))
 for i in range(200):
     for j in range(n_walkers):
         x[i*n_walkers+j] = arr[i,j,:]
 
-print(x.shape)
+print(x)
 # print(x)
 # print("shape",arr.shape)
 pars = []
@@ -29,15 +32,15 @@ print(pars)
 # data = ascii.read(path_to_valid+'HIRES_sci_42767_1/KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
 
 #HBC 722
-path_to_valid = "../../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+# path_to_valid = "../../../validation_files/"
+# data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
 
-data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
-#vac to air correction for given data
-wavelengths_air = wave.vactoair(data[0]*u.AA)
-data[0] = wavelengths_air
-# best_fit = total_spec(pars,data[0]*u.AA)
-print("done")
+# data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+# #vac to air correction for given data
+# wavelengths_air = wave.vactoair(data[0]*u.AA)
+# data[0] = wavelengths_air
+# # best_fit = total_spec(pars,data[0]*u.AA)
+# print("done")
 
 # fig = plt.figure(figsize=(16,10))
 # ax = fig.add_subplot(111)
@@ -69,11 +72,12 @@ figure = corner.corner(
     labels=[
         r'$M$',
         r'log $\dot M$',
+        r'b',
         r'$\theta$',
-        r'$R_{\ast}$',
         r'$T_o$',
     ],
     quantiles=[0.16,0.5,0.84],
+    range=[[0.1,1.0],[-6,-4],[0.9,1.1],[0.1,90],[3600,4400]],
     show_titles=True,
     smooth=0.5
 )

@@ -18,7 +18,7 @@ import logging
 os.environ["OMP_NUM_THREADS"] = "1"
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='mcmc.log', encoding='utf-8', level=logging.DEBUG)
-np.seterr(all="ignore")
+np.seterr(all="ignore") # IGNORE numpy warnings
 
 def config_reader(filepath):
     """
@@ -127,7 +127,7 @@ def total_spec(theta,wavelength):
     
     #run model
     dr, t_max, d, r_in, r_sub = bf.generate_temp_arr(config)
-    wave, obs_viscous_disk_flux = bf.generate_visc_flux(config, d, t_max, dr)
+    wave_ax, obs_viscous_disk_flux = bf.generate_visc_flux(config, d, t_max, dr)
     t1 = time.time()
     obs_mag_flux = bf.magnetospheric_component_calculate(config, r_in)
     t2 = time.time()
@@ -135,11 +135,11 @@ def total_spec(theta,wavelength):
     t3 = time.time()
     obs_star_flux = bf.generate_photosphere_flux(config)
     t4 = time.time()
-    total_flux = bf.dust_extinction_flux(config, wave, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
+    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
     t5 = time.time()
 
     #interpolate to required wavelength
-    func = interp1d(wave,total_flux)## CHECK if this works, for units
+    func = interp1d(wave_ax,total_flux)## CHECK if this works, for units
     result_spec = func(wavelength)
     result_spec /= np.median(result_spec)
 
@@ -188,21 +188,21 @@ def log_probability(theta): # gives the posterior probability
         return -np.inf
     return lp + log_likelihood(theta)
 
-def rad_vel_correction(wave, vel):
+def rad_vel_correction(wave_ax, vel):
     """
     Apply correction to wavelength for the doppler shift due to
     radial velocity of the star.
-    :param wave: Quantity numpy array
+    :param wave_ax: Quantity numpy array
     :param vel: astropy.units.Quantity
     :return: astropy.units.Quantity array
     """
-    del_wav = (vel/const.c) * wave
-    return wave - del_wav
+    del_wav = (vel/const.c) * wave_ax
+    return wave_ax - del_wav
 
 
 def main(p0,nwalkers,niter,ndim,lnprob):
 
-    print("trial4 :Running...")
+    print("Model running...")
     start = time.time()
     
     with Pool(processes=8) as pool:
@@ -220,41 +220,43 @@ def main(p0,nwalkers,niter,ndim,lnprob):
 
     return params
 
-# read data for Marvin
-# path_to_valid = "../../FU_ori_HIRES/"
-# data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
+if __name__=="__main__":
+    # read data for Marvin
+    # path_to_valid = "../../FU_ori_HIRES/"
+    # data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
 
-#read the data, V960 Mon
-path_to_valid = "../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
-data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
-#vac to air correction for given data
-wavelengths_air = wave.vactoair(data[0]*u.AA)
-# data[0] = wavelengths_air
+    #read the data, V960 Mon
+    path_to_valid = "../../../validation_files/"
+    data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+    data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+    #vac to air correction for given data
+    wavelengths_air = wave.vactoair(data[0]*u.AA)
+    # data[0] = wavelengths_air
 
-# radial velocity correction to wavelength
-data[0] = rad_vel_correction(wavelengths_air, -40.3 * u.km / u.s)# from header file
+    # radial velocity correction to wavelength
+    data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)# from header file
+    
 
-# plt.plot(data[0],data[1])
-# plt.show()
+    # plt.plot(data[0],data[1])
+    # plt.show()
 
-n_params = 5 # number of parameters that are varying
-nwalkers = 10
-niter = 1000
+    n_params = 5 # number of parameters that are varying
+    nwalkers = 10
+    niter = 100
 
-#check time for a single run
-# theta_single = [ 5.03197142e-01, -4.03054252e+00,  9.68469043e-01 , 1.20689315e+01,
-#   1.26199606e+01,  1.81237601e+00,  3.82239928e+03 , 7.06072326e+03,
-#   1.01185058e+00]
-# logger.info("Single spec run")
-# total_spec(theta_single, data[0]*u.AA)
+    #check time for a single run
+    # theta_single = [ 5.03197142e-01, -4.03054252e+00,  9.68469043e-01 , 1.20689315e+01,
+    #   1.26199606e+01,  1.81237601e+00,  3.82239928e+03 , 7.06072326e+03,
+    #   1.01185058e+00]
+    # logger.info("Single spec run")
+    # total_spec(theta_single, data[0]*u.AA)
 
 
-# generate initial conditions
-config_data = config_reader('mcmc_config.cfg')
-p0 = generate_initial_conditions(config_data, nwalkers)
+    # generate initial conditions
+    config_data = config_reader('mcmc_config.cfg')
+    p0 = generate_initial_conditions(config_data, nwalkers)
 
-params = main(p0,nwalkers,niter,n_params,log_probability)
-np.save("04112024_v960_1000it.npy",params)
+    params = main(p0,nwalkers,niter,n_params,log_probability)
+    np.save("22122024_v960_1000it.npy",params)
 
-print("completed")
+    print("completed")

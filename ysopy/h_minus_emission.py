@@ -136,7 +136,7 @@ def get_h_minus_intensity(config_file):
     # wavelength_fb = np.extract(wavelength < 16419 * u.AA, wavelength)
     kappa_fb_arr = generate_kappa_fb_arr(config_file)
     kappa_ff_arr = generate_kappa_ff_arr(config_file)
-    k_l_arr = np.zeros(config_file['n_h_minus']) * kappa_fb_arr[0].unit
+    k_l_arr = np.zeros(config_file['n_h_minus']) * u.cm**4 / u.dyn # kappa_fb_arr[0].unit
     k_l_arr[:kappa_fb_arr.shape[0]] = kappa_fb_arr
     k_l_arr += kappa_ff_arr
 

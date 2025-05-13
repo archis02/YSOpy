@@ -25,10 +25,10 @@ Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Topic :: Scientific/Engineering :: Astronomy
-Requires-Python: <3.12,>=3.9
+Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: astropy<5.2,>=5.1
+Requires-Dist: astropy>=5.1
 Requires-Dist: dust_extinction>=1.2
 Requires-Dist: matplotlib>=3.7.1
 Requires-Dist: numpy>=1.24.3
