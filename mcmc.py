@@ -107,7 +107,7 @@ def total_spec(theta,wavelength):
     # config['t_slab'] = theta[7] * u.K
     # config['tau'] = theta[8]
 
-    # get the stellar paramters from the isochrone model
+    # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
          0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4])

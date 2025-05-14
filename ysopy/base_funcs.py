@@ -3,7 +3,6 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.integrate import dblquad
 from scipy.integrate import trapezoid
-# from scipy.interpolate import interp1d
 import astropy.constants as const
 import astropy.units as u
 from astropy.io.votable import parse
@@ -21,9 +20,10 @@ import time
 from functools import cache
 import logging
 import warnings
+import sys
 
 
-def calculate_n_data(config): # also choose l_0
+def calculate_n_data(config):
 
     # the chosen temperature and logg is the BT Settl model that had highest sampling.
     # It is recommended to check your photosphere models and choose accordingly.
@@ -45,20 +45,21 @@ def calculate_n_data(config): # also choose l_0
     data = np.load(address)
     
     l_pad = 50 # excess padding to ensure that sampling is high enough
-    cond1 = l_min.value - 1.5 * l_pad < data[0]
-    cond2 = data[0] < l_max.value + 1.5 * l_pad
-    trimmed_ids = np.logical_and(cond1,cond2)
-    trimmed_wave = data[0][trimmed_ids].astype(np.float64)
+
+    l_bound = np.searchsorted(data[0],l_min.value - 1.5 * l_pad)
+    u_bound = np.searchsorted(data[0],l_max.value + 1.5 * l_pad)
+    trimmed_wave = data[0][l_bound:u_bound] * u.AA
 
     # overwrite the config dictionary
     config['n_data'] = trimmed_wave.shape[0]
-    config['l_0'] = (config['l_min'] + config['l_max']) * 0.5 ############# choice of l_0 ##################
+
+    # config['l_0'] = (config['l_min'] + config['l_max']) * 0.5 ############# choice of l_0 ##################
 
 @cache
 def load_npy_file(address):
     return np.load(address)
 
-def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
+def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None, ret_full_wavelength_ax=False):
     """read the stored BT-Settl model spectra from .npy format, for the supplied temperature and logg values
 
     Parameters
@@ -75,6 +76,9 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     r_in : astropy.units.Quantity or None
         if supplied, calculates the padding required
 
+    ret_full_wavelength : bool
+        controls whether the output will be the full wavelength range
+
     Returns
     ----------
     trimmed_wave : astropy.units.Quantity
@@ -88,6 +92,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     loc = config['bt_settl_path']
     l_min = config['l_min']
     l_max = config['l_max']
+    n_data = config['n_data']
 
     if temperature >= 100:
         address = f"{loc}/lte{temperature}-{logg}-0.0a+0.0.BT-Settl.7.dat.npy"
@@ -100,25 +105,33 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None):
     
     data = load_npy_file(address)
 
-    # trim data to region of interest
-    # extra region left for re-interpolation
+    # trim data to region of interest, extra region left for re-interpolation
     l_pad = 20
     if r_in is not None:
         v_max = np.sqrt(const.G.value * config['m'].value / r_in.value) * np.sin(config['inclination']) / const.c.value
         l_pad = l_max.value * v_max
         # print(l_pad)
 
-    cond1 = l_min.value - 1.5 * l_pad < data[0]
-    cond2 = data[0] < l_max.value + 1.5 * l_pad
-    trimmed_ids = np.logical_and(cond1,cond2)
-    trimmed_wave = data[0][trimmed_ids].astype(np.float64) * u.AA
-    trimmed_flux = data[1][trimmed_ids].astype(np.float64) * (u.erg / (u.cm * u.cm * u.s * u.AA))
+    if ret_full_wavelength_ax:
+        l_min = 1000.0 * u.AA
+        l_max = 50000.0 * u.AA
+    
+    l_bound = np.searchsorted(data[0],l_min.value - 1.5 * l_pad)
+    u_bound = np.searchsorted(data[0],l_max.value + 1.5 * l_pad)
+    trimmed_wave = data[0][l_bound:u_bound] * u.AA
+    trimmed_flux = data[1][l_bound:u_bound] * (u.erg / (u.cm * u.cm * u.s * u.AA))
+
+
+    # cond1 = l_min.value - 1.5 * l_pad < data[0]
+    # cond2 = data[0] < l_max.value + 1.5 * l_pad
+    # trimmed_ids = np.logical_and(cond1,cond2)
+    # trimmed_wave = data[0][trimmed_ids].astype(np.float64) * u.AA
+    # trimmed_flux = data[1][trimmed_ids].astype(np.float64) * (u.erg / (u.cm * u.cm * u.s * u.AA))
 
     # for low-resolution data, make a linear re-interpolation
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
-        # f = interp1d(x, y, kind="linear")
-        trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, config['n_data'], endpoint=True) * u.AA
+        trimmed_wave = np.linspace(l_min.value - l_pad, l_max.value + l_pad, n_data, endpoint=True) * u.AA
         trimmed_flux = np.interp(trimmed_wave, x, y) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
     return trimmed_wave, trimmed_flux
@@ -214,14 +227,14 @@ def unif_reinterpolate(config, x, y, l_pad):
     l_min = config['l_min']
     l_max = config['l_max']
     n_data = config['n_data']
-    # f = interp1d(x, y)
+
     wav = np.linspace(l_min.value - 1.2 * l_pad, l_max.value + 1.2 * l_pad, n_data, endpoint=True) * u.AA
     return wav, np.interp(wav, x, y) #* u.erg / (u.cm * u.cm * u.s * u.AA))
 
 
 def interpolate_conv(config, wavelength, flux, sampling, v_red):
     """Interpolate the given data to a logarithmic scale in the wavelength axis,
-    to account for a variable kernel during convolution.
+    to account for a variable kernel during convolution. Also determines the length of the kernel.
 
     Parameters
     ----------
@@ -248,26 +261,26 @@ def interpolate_conv(config, wavelength, flux, sampling, v_red):
 
     # determine the number of points in interpolated axis
     # spacing of points in interpolated axis must match that of kernel
-    x_log = np.log10(wavelength.value)
     k = (1 + v_red) / (1 - v_red)
     n_points = sampling / np.log10(k) * np.log10(wavelength[-1] / wavelength[0])
 
-    wavelength_log = np.logspace(x_log[0], x_log[-1], int(n_points))
-    wavelength_log = np.extract(wavelength_log > l_min.value - 5, wavelength_log)
-    wavelength_log = np.extract(wavelength_log < l_max.value + 5, wavelength_log)
+    wavelength_log = np.logspace(np.log10(wavelength[0].value), np.log10(wavelength[-1].value), int(n_points))
+    l_lower = np.searchsorted(wavelength_log, l_min.value - 5)
+    l_upper = np.searchsorted(wavelength_log, l_max.value + 5)
+    wave_log_trimmed = wavelength_log[l_lower:l_upper]
     
-    # this line must be done on a small axis (subset) to save time
-    flux_interpolated = np.interp(wavelength_log, wavelength.value, flux) #* u.erg / (u.cm**2 * u.s * u.AA)
+    # interpolate to the desired wavelengths
+    flux_interpolated = np.interp(wave_log_trimmed, wavelength.value, flux) #* u.erg / (u.cm**2 * u.s * u.AA)
 
     # determine the exact number of points to be taken in kernel
     l_around = np.extract(wavelength_log > (l0 * (1 - v_red)), wavelength_log)
     l_around = np.extract(l_around < (l0 * (1 + v_red)), l_around)
     kernel_length = (len(l_around) // 2) * 2 + 1  # odd number to ensure  symmetry
 
-    return kernel_length, wavelength_log, flux_interpolated
+    return kernel_length, wave_log_trimmed, flux_interpolated
 
 
-def logspace_reinterp(config, wavelength, flux, vacuum=None):
+def logspace_reinterp(config, wavelength, flux):
     """interpolates the given wavelength-flux data and interpolates to a logarithmic axis in the wavelength,
     used to convert all the SEDs to a common wavelength axis, so that they can be added
 
@@ -282,9 +295,6 @@ def logspace_reinterp(config, wavelength, flux, vacuum=None):
     flux : numpy.ndarray
         flux array to be interpolated
 
-    vacuum: bool
-        switch to control interpolation in air or vacuum
-
     Returns
     ----------
     wavelength_req : numpy.ndarray
@@ -296,7 +306,6 @@ def logspace_reinterp(config, wavelength, flux, vacuum=None):
     l_min = config['l_min']
     l_max = config['l_max']
     n_data = config['n_data']
-    # f = interp1d(wavelength, flux)
     wavelength_req = np.logspace(np.log10(l_min.value), np.log10(l_max.value), n_data)
     flux_final = np.interp(wavelength_req, wavelength, flux) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
@@ -572,7 +581,6 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
         radii = np.array([r for r, t in d.items() if t == int_temp])
         radii = radii * u.m
         radii = sorted(radii, reverse=True)
-        # print(len(radii))
 
         if int_temp in range(14, 20):  # constrained by availability of BT-Settl models
             logg = 3.5
@@ -580,12 +588,12 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
             logg = 1.5
 
         if len(radii) != 0:
-            wavelength, flux = read_bt_settl_npy(config, int_temp, logg, r_in)
+            wavelength, flux = read_bt_settl_npy(config, int_temp, logg, r_in, ret_full_wavelength_ax=True)
 
         for r in radii:
 
             if inclination.value == 0:
-                x_throw, y_final = logspace_reinterp(config, wavelength.value, flux.value)
+                x_throw, y_final = logspace_reinterp(config, wavelength.value, flux.value) # no problem expected here
 
             else:
                 v_kep = np.sqrt(const.G * m / r)
@@ -593,11 +601,11 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
 
                 ############################################################################
                 ############        Hard code       ########################################
-                ############################################################################
+                # assumes there are approx. 100 points in the kernel window around l_0
+                # kernel_len returns the exact number of points in the window if odd, or the next odd number, to ensure symmetry
 
-                interp_samp, wavelength_new, flux_new = interpolate_conv(config, wavelength, flux, 100, v_red)
-                kernel = generate_kernel(config, interp_samp, v_red)
-                # print(f"kernel array {kernel}\nflux array {flux_new}")
+                kernel_len, wavelength_new, flux_new = interpolate_conv(config, wavelength, flux, 100, v_red)
+                kernel = generate_kernel(config, kernel_len, v_red)
                 convolved_spectra = np.convolve(flux_new, kernel, mode="same")
                 x_throw, y_final = logspace_reinterp(config, wavelength_new, convolved_spectra)
 
@@ -657,18 +665,21 @@ def generate_photosphere_flux(config):
 
     int_star_temp = int(np.round(t_star / (100 * u.K)))
 
-    #change to npy
-    #star_data = parse(f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.xml")
     address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.npy"
     data = np.load(address)
 
-    cond1 = l_min.value - 10 < data[0]
-    cond2 = data[0] < l_max.value + 10
-    trimmed_ids = np.logical_and(cond1,cond2)
-    x2 = data[0][trimmed_ids].astype(np.float64)
-    y2 = data[1][trimmed_ids].astype(np.float64) * u.erg / (u.s * u.cm**2 * u.AA)
+    l_bound = np.searchsorted(data[0],l_min.value - 10.0)
+    u_bound = np.searchsorted(data[0],l_max.value + 10.0)
+    x2 = data[0][l_bound:u_bound]
+    y2 = data[1][l_bound:u_bound] * (u.erg / (u.cm * u.cm * u.s * u.AA))
 
-    wavelength, y_new_star = logspace_reinterp(config, x2, y2, vacuum=True)
+    # cond1 = l_min.value - 10 < data[0]
+    # cond2 = data[0] < l_max.value + 10
+    # trimmed_ids = np.logical_and(cond1,cond2)
+    # x2 = data[0][trimmed_ids].astype(np.float64)
+    # y2 = data[1][trimmed_ids].astype(np.float64) * u.erg / (u.s * u.cm**2 * u.AA)
+
+    wavelength, y_new_star = logspace_reinterp(config, x2, y2)
     obs_star_flux = y_new_star * (r_star.si / d_star.si) ** 2
 
     if config['plot']:
@@ -908,14 +919,14 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
         t_visc_dust = np.zeros(len(r_dust)) * u.K
         for i in range(len(r_dust)):
             t_visc_dust[i] = temp_visc(config, r_dust[i], r_in)  # has to be done using for loop to avoid ValueError
-        #print(t_visc_dust)
+
         t_dust = np.maximum(t_dust_init, t_visc_dust)
 
     if plot:
         plt.plot(r_dust / const.au, t_dust.value)
-        plt.xlabel("Radial distance (in AU) ----->")
-        plt.ylabel("Temperature (in Kelvin) ----->")
-        plt.title("Dusty Disk Radial Temperature Variation")
+        plt.xlabel("Radial distance [AU] ----->")
+        plt.ylabel("Temperature [Kelvin]")
+        plt.title("Passively heated radial temperature profile")
         plt.show()
 
     dust_flux = np.zeros(n_data) * u.erg / (u.cm * u.cm * u.s * u.AA * u.sr) * (u.m * u.m)
@@ -928,7 +939,6 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
             dust_bb_flux = dust_bb(wavelength)
         dust_flux += dust_bb_flux * np.pi * (r_dust[i + 1] ** 2 - r_dust[i] ** 2)
         if i % 100 == 0:  # print progress after every 100 annuli
-            #print(r_dust[i])
             if config['verbose']:
                 print(f"done temperature {i}")
 
@@ -1047,12 +1057,10 @@ def main(raw_args=None):
     calculate_n_data(dict_config) # set n_data
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
 
-    # control line for planetesimal
-    # garb1, garb2, d = generate_temp_arr_planet(dict_config, 2, 0.03, d)
+    # sys.exit(0)
 
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
-
-    # save with noise
+    # sys.exit(0)
 
     if dict_config["verbose"]:
         print('Viscous disk done')
@@ -1085,7 +1093,6 @@ def main(raw_args=None):
         plt.xlabel("Wavelength [Angstrom]")
         plt.ylabel("Flux [erg / cm^2 s A]")
         plt.show()
-
     print("done")
 
 def rad_vel_correction(wave, vel):
@@ -1101,7 +1108,6 @@ def rad_vel_correction(wave, vel):
 
 
 if __name__ == "__main__":
-
     main()
 
 '''from pypeit.core import wave

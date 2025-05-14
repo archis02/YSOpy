@@ -1,0 +1,8 @@
+# .gitignore
+*.png
+*.csv
+*.npy
+*.log
+__pycache__/
+/ysopy/*.npy
+/ysopy/*.log
