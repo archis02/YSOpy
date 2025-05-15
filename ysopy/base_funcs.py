@@ -21,6 +21,7 @@ from functools import cache
 import logging
 import warnings
 import sys
+import cProfile
 
 
 def calculate_n_data(config):
@@ -52,8 +53,6 @@ def calculate_n_data(config):
 
     # overwrite the config dictionary
     config['n_data'] = trimmed_wave.shape[0]
-
-    # config['l_0'] = (config['l_min'] + config['l_max']) * 0.5 ############# choice of l_0 ##################
 
 @cache
 def load_npy_file(address):
@@ -273,9 +272,12 @@ def interpolate_conv(config, wavelength, flux, sampling, v_red):
     flux_interpolated = np.interp(wave_log_trimmed, wavelength.value, flux) #* u.erg / (u.cm**2 * u.s * u.AA)
 
     # determine the exact number of points to be taken in kernel
-    l_around = np.extract(wavelength_log > (l0 * (1 - v_red)), wavelength_log)
-    l_around = np.extract(l_around < (l0 * (1 + v_red)), l_around)
-    kernel_length = (len(l_around) // 2) * 2 + 1  # odd number to ensure  symmetry
+    up = np.searchsorted(wavelength_log, (l0 * (1 + v_red)))
+    low = np.searchsorted(wavelength_log, (l0 * (1 - v_red)))
+    l_around = up-low
+    # l_around = np.extract(wavelength_log > (l0 * (1 - v_red)), wavelength_log)
+    # l_around = np.extract(l_around < (l0 * (1 + v_red)), l_around)
+    kernel_length = (l_around // 2) * 2 + 1  # odd number to ensure  symmetry
 
     return kernel_length, wave_log_trimmed, flux_interpolated
 
@@ -673,12 +675,6 @@ def generate_photosphere_flux(config):
     x2 = data[0][l_bound:u_bound]
     y2 = data[1][l_bound:u_bound] * (u.erg / (u.cm * u.cm * u.s * u.AA))
 
-    # cond1 = l_min.value - 10 < data[0]
-    # cond2 = data[0] < l_max.value + 10
-    # trimmed_ids = np.logical_and(cond1,cond2)
-    # x2 = data[0][trimmed_ids].astype(np.float64)
-    # y2 = data[1][trimmed_ids].astype(np.float64) * u.erg / (u.s * u.cm**2 * u.AA)
-
     wavelength, y_new_star = logspace_reinterp(config, x2, y2)
     obs_star_flux = y_new_star * (r_star.si / d_star.si) ** 2
 
@@ -981,8 +977,11 @@ def dust_extinction_flux(config, wavelength, obs_viscous_disk_flux, obs_star_flu
     plot = config['plot']
     save_loc = config['save_loc']
 
-    wav1 = np.extract(wavelength < 33e3 * u.AA, wavelength)
-    wav2 = np.extract(wavelength >= 33e3 * u.AA, wavelength)
+    break_id = np.searchsorted(wavelength, 33000*u.AA)
+    wav1 = wavelength[:break_id]
+    wav2 = wavelength[break_id:]
+    # wav1 = np.extract(wavelength < 33e3 * u.AA, wavelength)
+    # wav2 = np.extract(wavelength >= 33e3 * u.AA, wavelength)
 
     total = obs_star_flux + obs_viscous_disk_flux + obs_dust_flux + obs_mag_flux
 
@@ -1056,11 +1055,7 @@ def main(raw_args=None):
     dict_config = utils.config_read(args.ConfigfileLocation)
     calculate_n_data(dict_config) # set n_data
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
-
-    # sys.exit(0)
-
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
-    # sys.exit(0)
 
     if dict_config["verbose"]:
         print('Viscous disk done')
@@ -1108,7 +1103,7 @@ def rad_vel_correction(wave, vel):
 
 
 if __name__ == "__main__":
-    main()
+    cProfile.run("main()")
 
 '''from pypeit.core import wave
 from astropy.io import ascii
