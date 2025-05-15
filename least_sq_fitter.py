@@ -1,8 +1,6 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import time
-import os
 import sys
 import multiprocessing as mp
 from functools import partial
@@ -20,7 +18,7 @@ from ysopy import utils
 import warnings
 
 # Turn all warnings into errors
-warnings.simplefilter('error', RuntimeWarning)
+# warnings.simplefilter('error', RuntimeWarning)
 
 # Alternatively, target only RuntimeWarnings
 # warnings.filterwarnings('error', category=RuntimeWarning)
@@ -41,9 +39,9 @@ wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for give
 data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
 
 OUTPUT_FILE = '/home/arch/yso/results/best_fit_params.txt'
-N_PARAMS = 5
-INITIAL_GUESS = np.array([0.6,-4.55,1.0,15.0,4,8])   # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
-BOUNDS = ([0.4,-6.5,0.8,5.0,3.0,7.5], [0.8,-4.6,1.2,30.0,4.5,8.5])
+# N_PARAMS = 6
+INITIAL_GUESS = np.array([0.6,-5.0,1.0,15.0,4,8])   # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
+BOUNDS = [[0.4,-6.5,0.8,5.0,3.0,7.5], [0.8,-4.6,1.2,30.0,4.5,8.5]]
 
 x_obs, y_obs, yerr = data[0], data[1], data[2]
 
@@ -88,8 +86,7 @@ def model_spec(theta,wavelength):
     # t5 = time.time()
 
     # interpolate to required wavelength
-    func = interp1d(wave_ax,total_flux)     # CHECK if this works, for units
-    result_spec = func(wavelength)
+    result_spec = np.interp(wavelength, wave_ax,total_flux.value)     # CHECK if this works, for units
     result_spec /= np.median(result_spec)
 
     # print(f"model run ... time taken {t5 - t0} s")
@@ -103,10 +100,38 @@ def residuals(theta):
     print(f"Evaluated at theta={np.round(theta, 3)} | time: {time.time() - start:.2f}s")
     return residual
 
-def run_optimization():
-    print("Starting least-sq optimization...")
+def residuals_polynomial(theta, poly_order):
+    start = time.time()
+
+    n_model_params = len(theta) - (poly_order + 1)
+    theta_model = theta[:n_model_params]
+    poly_coeffs = theta[n_model_params:]
+
+    model_flux = model_spec(theta_model, x_obs)
+    poly_func = np.polyval(poly_coeffs, x_obs.value)
+    residual = (y_obs - model_flux * poly_func) / yerr
+
+    print(f"Evaluated at theta={np.round(theta_model, 3)} | "
+          f"poly={np.round(poly_coeffs, 3)} | "
+          f"time: {time.time() - start:.2f}s")
+    
+    return residual
+
+
+def run_optimization(poly_order):
+    print(f"Starting least-sq optimization...\nThe continuum is a polynomial of order {poly_order}")
     start_time = time.time()
-    result = least_squares(residuals, INITIAL_GUESS, method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8)
+
+    # set initial guess for the polynomial coeffs, set bounds
+    poly_params_guess = np.array([0.0]*poly_order+[1]) # flat initial guess
+    INITIAL_GUESS_TOT = np.concatenate([INITIAL_GUESS,poly_params_guess])
+    bd_lower = [-1] * poly_order + [0.5]
+    bd_upper = [1] * poly_order + [1.5]
+    BOUNDS[0] = BOUNDS[0] + bd_lower
+    BOUNDS[1] = BOUNDS[1] + bd_upper
+    print(BOUNDS)
+    print(INITIAL_GUESS_TOT)
+    result = least_squares(residuals_polynomial, INITIAL_GUESS_TOT, args=(poly_order,), method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8)
     total_time = time.time() - start_time
     print(f"Optimization finished in {total_time:.2f} seconds.")
     
@@ -116,11 +141,19 @@ def run_optimization():
     return result.x
 
 # PLOT
-def plot_fit(best_params):
-    model_flux = model_spec(best_params, x_obs*u.AA)
+def plot_fit(best_params,poly_order):
+
+    n_model_params = len(best_params) - (poly_order + 1)
+    theta_model = best_params[:n_model_params]
+    poly_coeffs = best_params[n_model_params:]
+    print(poly_coeffs)
+    model_flux = model_spec(theta_model, x_obs)
+    poly_func = np.polyval(poly_coeffs, x_obs.value)
+    model_continuum_corrected = model_flux * poly_func
+
     plt.figure(figsize=(10, 5))
     plt.plot(x_obs, y_obs, label="Observed", color='black')
-    plt.plot(x_obs, model_flux, label="Model Fit", linestyle='--')
+    plt.plot(x_obs, model_continuum_corrected, label="Model Fit", linestyle='--')
     plt.fill_between(x_obs.value, y_obs.value - yerr.value, y_obs.value + yerr.value, color='gray', alpha=0.3, label="Error")
     plt.xlabel("Wavelength")
     plt.ylabel("Flux")
@@ -130,11 +163,16 @@ def plot_fit(best_params):
     plt.savefig("fit_result.png", dpi=300)
     plt.show()
 
-# if __name__ == "__main__":
-#     best_fit = run_optimization()
-#     plot_fit(best_fit)
+if __name__ == "__main__":
+    config = utils.config_read('ysopy/config_file.cfg')
+    best_fit = run_optimization(config['poly_order'])
 
-# sys.exit(0)
+    #read manually
+    # best_fit = np.loadtxt(OUTPUT_FILE)
+
+    plot_fit(best_fit,config['poly_order'])
+
+sys.exit(0)
 
 ##################################################################
 
@@ -142,7 +180,7 @@ def plot_fit(best_params):
 
 param_names = ['m', 'log_m_dot', 'b', 'inclination', 't_0/1000', 't_slab/1000']
 param_i, param_j = 0, 1  # parameters to vary
-n_points = 20
+n_points = 10
 pi_vals = np.linspace(BOUNDS[0][param_i], BOUNDS[1][param_i], n_points)
 pj_vals = np.linspace(BOUNDS[0][param_j], BOUNDS[1][param_j], n_points)
 PI, PJ = np.meshgrid(pi_vals, pj_vals)

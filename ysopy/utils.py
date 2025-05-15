@@ -47,6 +47,7 @@ def config_read(path):
     dict_config["n_h"] = int(dict_config["n_h"])
     dict_config["l_l_slab"] = float(dict_config["l_l_slab"]) * u.AA
     dict_config["n_h_minus"] = int(dict_config["n_h_minus"])
+    dict_config["poly_order"] = int(dict_config["poly_order"])
     
     for param in ["save", "save_each", "plot", "save_grid_data", "verbose"]:
         if dict_config[param] == "True":
