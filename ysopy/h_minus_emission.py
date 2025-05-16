@@ -28,8 +28,8 @@ def generate_kappa_fb_arr(config_file):
     kappa_h_l_fb_arr:   astropy.units.Quantity
         kappa (i.e absorption coefficient) for free-bound case
     """
-    wavelength = np.logspace(np.log10(config_file['l_min'].value),
-                      np.log10(config_file['l_max'].value), config_file['n_h_minus']) * u.AA
+    wavelength = np.logspace(np.log10(config_file['l_min']),
+                      np.log10(config_file['l_max']), config_file['n_h_minus']) * u.AA
     t_slab = config_file['t_slab']
 
     # Parameters for the photo-detachment cross-section calculation
@@ -75,8 +75,8 @@ def generate_kappa_ff_arr(config_file):
     free_free_coeff_2['E_n'] = [0, -1341.5370, 5303.6090, -7510.4940, 4400.0670, -901.7880]
     free_free_coeff_2['F_n'] = [0, 208.9520, -812.9390, 1132.7380, -655.0200, 132.9850]
 
-    l = np.logspace(np.log10(config_file['l_min'].value),
-                    np.log10(config_file['l_max'].value), config_file['n_h_minus']) * u.AA
+    l = np.logspace(np.log10(config_file['l_min']),
+                    np.log10(config_file['l_max']), config_file['n_h_minus']) * u.AA
     t_slab = config_file['t_slab']
 
     kappa_ff_arr = np.zeros(config_file['n_h_minus'])
@@ -118,7 +118,7 @@ def get_h_minus_intensity(config_file):
     config file. It also checks if the parameters are within range of the model or not. If not then
     the program doesn't break rather puts a warning.
     """
-    wavelength = np.logspace(np.log10(config_file['l_min'].value),np.log10(config_file['l_max'].value), config_file['n_h_minus']) * u.AA
+    wavelength = np.logspace(np.log10(config_file['l_min']),np.log10(config_file['l_max']), config_file['n_h_minus']) * u.AA
     # print(len(wavelength))
     t_slab = config_file['t_slab']
     ne = config_file['n_e']

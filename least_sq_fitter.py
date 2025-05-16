@@ -41,20 +41,24 @@ data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial vel
 
 OUTPUT_FILE = '/home/arch/yso/results/best_fit_params_file_5.txt'
 # N_PARAMS = 6
-INITIAL_GUESS = np.array([0.6,-4.5,1.0,15.0,4,8])   # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
-BOUNDS = [[0.4,-5.5,0.8,5.0,3.0,6.5], [0.8,-4.2,1.2,30.0,4.5,9.0]]
+INITIAL_GUESS = np.array([0.55,-4.7,1.0,19.0,4,8]) *1e-5  # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
+BOUNDS = np.array([[0.4,-5.5,0.8,5.0,3.0,6.5], [0.8,-4.2,1.2,30.0,4.5,9.0]]) * 1e-5
+BOUNDS = BOUNDS.tolist()
 
-x_obs, y_obs, yerr = data[0], data[1], data[2]
+x_obs, y_obs, yerr = data[0].value, data[1], data[2]
 
 def model_spec(theta,wavelength):
     # t0 = time.time()
-
-    config = utils.config_read('ysopy/config_file.cfg')
-    config['m'] = theta[0] * const.M_sun
-    config['m_dot'] = 10**theta[1] * const.M_sun / (1 * u.year).to(u.s) ## Ensure the 10** here
-    config['b'] = theta[2] * u.kilogauss
-    config['inclination'] = theta[3] * u.degree
-    config['t_0'] = theta[4] *1000.0 * u.K
+    
+    #scale back
+    theta = theta*1e5
+    
+    config = utils.config_read_bare('ysopy/config_file.cfg')
+    config['m'] = theta[0] * const.M_sun.value
+    config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
+    config['b'] = theta[2]
+    config['inclination'] = theta[3] * np.pi / 180.0 # radians
+    config['t_0'] = theta[4] *1000.0
     config['t_slab'] = theta[5] *1000.0 * u.K
 
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
@@ -70,8 +74,8 @@ def model_spec(theta,wavelength):
     func_temp = interp1d(m, temp_arr)
     func_rad = interp1d(m, rad_arr)
 
-    config["t_star"] = int(func_temp(config["m"]/const.M_sun)/100) * 100 * u.K
-    config["r_star"] = func_rad(config["m"]/const.M_sun) * const.R_sun
+    config["t_star"] = int(func_temp(theta[0])/100.0) * 100.0
+    config["r_star"] = func_rad(theta[0]) * const.R_sun.value
 
     #run model
     t0 = time.time()
@@ -90,7 +94,7 @@ def model_spec(theta,wavelength):
     t5 = time.time()
 
     # interpolate to required wavelength
-    result_spec = np.interp(wavelength, wave_ax,total_flux.value)     # CHECK if this works, for units
+    result_spec = np.interp(wavelength, wave_ax,total_flux)     # CHECK if this works, for units
     result_spec /= np.median(result_spec)
 
     # print(f"model run ... "
@@ -116,12 +120,12 @@ def residuals_polynomial(theta, poly_order):
     poly_coeffs = theta[n_model_params:]
 
     model_flux = model_spec(theta_model, x_obs)
-    poly_func = np.polyval(poly_coeffs, x_obs.value)
+    poly_func = np.polyval(poly_coeffs, x_obs)
     residual = (y_obs - model_flux * poly_func) / yerr
 
-    print(f"Evaluated at theta={np.round(theta_model, 3)} | "
-          f"poly={np.round(poly_coeffs, 3)} | "
-          f"time: {time.time() - start:.2f}s")
+    print(f"Evaluated at theta={np.round(theta_model, 6)} | "
+          f"poly={np.round(poly_coeffs, 6)} | "
+          f"time: {time.time() - start:.3f}s")
     
     return residual
 
@@ -137,8 +141,15 @@ def run_optimization(poly_order):
     bd_upper = [1] * poly_order + [1.5]
     BOUNDS[0] = BOUNDS[0] + bd_lower
     BOUNDS[1] = BOUNDS[1] + bd_upper
+    
+    #scale guess and bounds
+    # INITIAL_GUESS_TOT_scaled = INITIAL_GUESS_TOT * 1e-4
+    # BOUNDS_arr = np.array(BOUNDS)*1e-4
+    # BOUNDS_scaled = BOUNDS_arr.tolist()
+
     print(BOUNDS)
     print(INITIAL_GUESS_TOT)
+    
     result = least_squares(residuals_polynomial, INITIAL_GUESS_TOT, args=(poly_order,), method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8)
     total_time = time.time() - start_time
     print(f"Optimization finished in {total_time:.2f} seconds.")
@@ -156,13 +167,13 @@ def plot_fit(best_params,poly_order):
     poly_coeffs = best_params[n_model_params:]
     print(poly_coeffs)
     model_flux = model_spec(theta_model, x_obs)
-    poly_func = np.polyval(poly_coeffs, x_obs.value)
+    poly_func = np.polyval(poly_coeffs, x_obs)
     model_continuum_corrected = model_flux * poly_func
 
     plt.figure(figsize=(10, 5))
     plt.plot(x_obs, y_obs, label="Observed", color='black')
     plt.plot(x_obs, model_continuum_corrected, label="Model Fit", linestyle='--')
-    plt.fill_between(x_obs.value, y_obs.value - yerr.value, y_obs.value + yerr.value, color='gray', alpha=0.3, label="Error")
+    plt.fill_between(x_obs, y_obs - yerr, y_obs + yerr, color='gray', alpha=0.3, label="Error")
     plt.xlabel("Wavelength")
     plt.ylabel("Flux")
     plt.legend()
@@ -172,14 +183,14 @@ def plot_fit(best_params,poly_order):
     plt.show()
 
 if __name__ == "__main__":
-    config = utils.config_read('ysopy/config_file.cfg')
-    cProfile.run(run_optimization(config['poly_order']))
-    # best_fit = run_optimization(config['poly_order'])
+    config = utils.config_read_bare('ysopy/config_file.cfg')
+    # cProfile.run(run_optimization(config['poly_order']))
+    best_fit = run_optimization(config['poly_order'])
 
     # read manually
     # best_fit = np.loadtxt(OUTPUT_FILE)
 
-    # plot_fit(best_fit,config['poly_order'])
+    plot_fit(best_fit,config['poly_order'])
 
 sys.exit(0)
 

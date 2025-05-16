@@ -45,6 +45,47 @@ def f_sum(t, m, t_slab, large_num = 1000):
     result = np.sum(terms)
     return result
 
+def f_sum_vectorized(t_fb_v, m, t_slab, large_num=1000):
+    
+    N = large_num
+    M = t_fb_v.shape[0]
+    
+    # Create a 2D array of shape (M, N), where each row i is arange(m[i], N)
+    # This is tricky since m[i] may be different — so we mask entries below m[i]
+
+    n = np.arange(N)
+    n_matrix = np.tile(n, (M, 1))
+    mask = n_matrix >= m[:, None]
+
+    # broadcast t_fb_v and compute only where mask is True
+    t_matrix = t_fb_v[:, None] * np.ones_like(n_matrix)
+    terms = np.zeros_like(t_matrix, dtype=float)
+
+    terms[mask] = (1 / n_matrix[mask] ** 3) * np.exp((h * v_o) / (k * t_slab * n_matrix[mask] ** 2)) * (
+            1 + 0.1728 * (t_matrix[mask] ** (1 / 3) - (2 / n_matrix[mask] ** 2) * t_matrix[mask] ** (-2 / 3)) - 0.0496 * (
+            t_matrix[mask] ** (2 / 3) - (2 / (3 * n_matrix[mask] ** 2)) * t_matrix[mask] ** (-1 / 3) +
+            (2 / (3 * n_matrix[mask] ** 4)) * t_matrix[mask] ** (-4 / 3)))  # ref. Manara eq. 2.15
+
+    result = np.sum(terms, axis=1)
+    return result
+
+def j_h_fb_calc_vec(config_file, v):
+    t_slab = config_file["t_slab"]
+    n_e = config_file["n_e"]
+    n_i = n_e
+    t_fb_v = v / (v_o * Z ** 2)
+    m = (1 / t_fb_v) ** 0.5 + 1 # m parameter for the lower limit of the infinite sum, ref. Manara eq. 2.14
+    m = m.astype('int32')
+
+    g_fb_vt = f_sum_vectorized(t_fb_v, m, t_slab, large_num=100)
+    g_fb_vt = g_fb_vt * (2 * h * v_o * Z ** 2 / (k * t_slab))
+
+    j_h_fb_v = 5.44 * 10 ** (-39) * Z ** 2 / (t_slab.value) ** (1 / 2) * n_e.value * n_i.value * np.exp(
+        (-h * v) / (k * t_slab)) * g_fb_vt * u.erg * u.cm ** (-3) * u.s ** (-1) * u.Hertz ** (-1) * u.sr ** (-1)
+
+    return j_h_fb_v
+
+
 # Alternative to j_h_fb_calc
 def j_h_fb_calc(config_file, v):
     """
@@ -70,7 +111,7 @@ def j_h_fb_calc(config_file, v):
     m = (1 / t_fb_v) ** 0.5 + 1
     m = m.astype('int32')  # m parameter for the lower limit of the infinite sum, ref. Manara eq. 2.14
     
-    #calculate the Gaunt factor
+    #calculate the Gaunt factor     this is very slow
     g_fb_vt = np.zeros(t_fb_v.shape[0])
     for i in range(t_fb_v.shape[0]):
         g_fb_vt[i] = f_sum(t_fb_v[i], m[i], t_slab, large_num=100)
@@ -139,7 +180,7 @@ def get_l_slab(config_file: dict):
     v = np.array([v.si.value]) * u.Hz # for consistency
 
     # total emissivity
-    j_h_fb_v = j_h_fb_calc(config_file, v)
+    j_h_fb_v = j_h_fb_calc_vec(config_file, v)
     j_h_ff_v = j_h_ff_calc(config_file, v)
     j_h_tot = j_h_fb_v + j_h_ff_v
     
@@ -229,13 +270,13 @@ def generate_grid_h(config_file, t_slab, log_n_e, tau):
 
 def get_h_intensity(config_file):
     """Generates the intensity from the H-component"""
-    wavelength = np.logspace(np.log10(config_file['l_min'].value),
-                      np.log10(config_file['l_max'].value), config_file['n_h']) * u.AA
+    wavelength = np.logspace(np.log10(config_file['l_min']),
+                      np.log10(config_file['l_max']), config_file['n_h']) * u.AA
     v = const.c / wavelength
 
     if config_file['verbose']:
         print("Starting free-bound calculation")
-    j_h_fb_arr = j_h_fb_calc(config_file,v)
+    j_h_fb_arr = j_h_fb_calc_vec(config_file,v)
     if config_file['verbose']:
         print("starting free-free calculation")
     j_h_ff_arr = j_h_ff_calc(config_file, v)
