@@ -11,6 +11,7 @@ from configparser import ConfigParser
 import matplotlib.pyplot as plt
 import time
 
+
 from multiprocessing import Pool
 import os
 import logging
