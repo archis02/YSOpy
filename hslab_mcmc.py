@@ -27,6 +27,8 @@ def wrap_h_slab(t_slab, n_e, tau):
     return h_slab_flux
 
 # theta arr = tslab, log10_ne, tau, log_f
+
+
 def log_likelihood(theta, obs_flux, yerr=None):
     if yerr is None:
         yerr = np.zeros((len(obs_flux)))
