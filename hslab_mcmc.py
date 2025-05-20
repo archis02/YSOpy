@@ -6,6 +6,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 from ysopy import utils
 import warnings
+import multiprocessing
 config = utils.config_read_bare("ysopy/config_file.cfg")
 import corner
 
@@ -84,7 +85,7 @@ obs_flux = np.load("obs_h_slab_flux.npy")
 yerr = np.zeros(len(obs_flux))
 
 # saving the chains
-mcmc_iter = 10000
+mcmc_iter = 1000
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}.h5"
 print(filename)
 # exit(0)
@@ -92,12 +93,22 @@ backend = emcee.backends.HDFBackend(filename)
 backend.reset(nwalkers, ndim)
 
 
+"""
 sampler = emcee.EnsembleSampler(
     nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend
 )
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     sampler.run_mcmc(pos, mcmc_iter, progress=True, store=True);
+"""
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    with multiprocessing.get_context("fork").Pool() as pool:
+        sampler = emcee.EnsembleSampler(
+            nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool
+        )
+
+        sampler.run_mcmc(pos, mcmc_iter, progress=True, store=True)
 
 ############# Result plotting
 
@@ -114,7 +125,7 @@ with warnings.catch_warnings():
 #
 # axes[-1].set_xlabel("step number");
 # plt.show()
-exit(0)
+"""exit(0)
 
 reader = emcee.backends.HDFBackend(filename)
 
@@ -135,5 +146,5 @@ labels = ["tslab_1000", "log10_ne", "tau_10"]
 fig = corner.corner(
     flat_samples, labels=labels, truths=[10, 13, 1]
 )
-plt.show()
+plt.show()"""
 
