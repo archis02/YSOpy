@@ -18,6 +18,7 @@ from ysopy import utils
 #stop at runtime warnings
 import warnings
 
+
 # Turn all warnings into errors
 # warnings.simplefilter('error', RuntimeWarning)
 
@@ -29,37 +30,42 @@ def rad_vel_correction(wave_ax, vel):
     Apply correction to wavelength for the doppler shift due to
     radial velocity of the star.
     """
-    del_wav = (vel/const.c) * wave_ax
+    del_wav = (vel / const.c) * wave_ax
     return wave_ax - del_wav
+
 
 #read the data, V960 Mon, initially, using file 04###############
 path_to_valid = "../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_05_flux.tbl.gz')
-data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
-wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
-data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
+data = ascii.read(path_to_valid + 'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_05_flux.tbl.gz')
+data = [data['wave'], data['Flux'] / np.median(data['Flux']),
+        data['Error'] / np.median(data['Flux'])]  # median normalized
+wavelengths_air = wave.vactoair(data[0] * u.AA)  # vac to air correction for given data
+data[0] = rad_vel_correction(wavelengths_air,
+                             40.3 * u.km / u.s)  # radial velocity correction to wavelength, from header file
 
 OUTPUT_FILE = '/home/arch/yso/results/best_fit_params_file_5.txt'
 # N_PARAMS = 6
-INITIAL_GUESS = np.array([0.55,-4.7,1.0,19.0,4,8]) *1e-5  # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
-BOUNDS = np.array([[0.4,-5.5,0.8,5.0,3.0,6.5], [0.8,-4.2,1.2,30.0,4.5,9.0]]) * 1e-5
+INITIAL_GUESS = np.array(
+    [0.55, -4.7, 1.0, 19.0, 4, 8]) #* 1e-5  # params = ['m', 'log_m_dot', 'b', 'inclination', 't_0'/1000, 't_slab'/1000]
+BOUNDS = np.array([[0.4, -5.5, 0.8, 5.0, 3.0, 6.5], [0.8, -4.2, 1.2, 30.0, 4.5, 9.0]])# * 1e-5
 BOUNDS = BOUNDS.tolist()
 
 x_obs, y_obs, yerr = data[0].value, data[1], data[2]
 
-def model_spec(theta,wavelength):
+
+def model_spec(theta, wavelength):
     # t0 = time.time()
-    
+
     #scale back
-    theta = theta*1e5
-    
+    theta = theta #* 1e5
+
     config = utils.config_read_bare('ysopy/config_file.cfg')
     config['m'] = theta[0] * const.M_sun.value
-    config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
+    config['m_dot'] = 10 ** theta[1] * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
-    config['inclination'] = theta[3] * np.pi / 180.0 # radians
-    config['t_0'] = theta[4] *1000.0
-    config['t_slab'] = theta[5] *1000.0 * u.K
+    config['inclination'] = theta[3] * np.pi / 180.0  # radians
+    config['t_0'] = theta[4] * 1000.0
+    config['t_slab'] = theta[5] * 1000.0 * u.K
 
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
@@ -74,7 +80,7 @@ def model_spec(theta,wavelength):
     func_temp = interp1d(m, temp_arr)
     func_rad = interp1d(m, rad_arr)
 
-    config["t_star"] = int(func_temp(theta[0])/100.0) * 100.0
+    config["t_star"] = int(func_temp(theta[0]) / 100.0) * 100.0
     config["r_star"] = func_rad(theta[0]) * const.R_sun.value
 
     #run model
@@ -90,11 +96,12 @@ def model_spec(theta,wavelength):
     t3 = time.time()
     obs_star_flux = bf.generate_photosphere_flux(config)
     t4 = time.time()
-    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
+    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux,
+                                         obs_dust_flux)
     t5 = time.time()
 
     # interpolate to required wavelength
-    result_spec = np.interp(wavelength, wave_ax,total_flux)     # CHECK if this works, for units
+    result_spec = np.interp(wavelength, wave_ax, total_flux)  # CHECK if this works, for units
     result_spec /= np.median(result_spec)
 
     # print(f"model run ... "
@@ -105,12 +112,14 @@ def model_spec(theta,wavelength):
 
     return result_spec
 
+
 def residuals(theta):
     start = time.time()
     model_flux = model_spec(theta, x_obs)
-    residual = (y_obs - model_flux) / yerr**2
+    residual = (y_obs - model_flux) / yerr ** 2
     print(f"Evaluated at theta={np.round(theta, 3)} | time: {time.time() - start:.2f}s")
     return residual
+
 
 def residuals_polynomial(theta, poly_order):
     start = time.time()
@@ -126,7 +135,7 @@ def residuals_polynomial(theta, poly_order):
     print(f"Evaluated at theta={np.round(theta_model, 6)} | "
           f"poly={np.round(poly_coeffs, 6)} | "
           f"time: {time.time() - start:.3f}s")
-    
+
     return residual
 
 
@@ -135,13 +144,13 @@ def run_optimization(poly_order):
     start_time = time.time()
 
     # set initial guess for the polynomial coeffs, set bounds
-    poly_params_guess = np.array([0.0]*poly_order+[1]) # flat initial guess
-    INITIAL_GUESS_TOT = np.concatenate([INITIAL_GUESS,poly_params_guess])
+    poly_params_guess = np.array([0.0] * poly_order + [1])  # flat initial guess
+    INITIAL_GUESS_TOT = np.concatenate([INITIAL_GUESS, poly_params_guess])
     bd_lower = [-1] * poly_order + [0.5]
     bd_upper = [1] * poly_order + [1.5]
     BOUNDS[0] = BOUNDS[0] + bd_lower
     BOUNDS[1] = BOUNDS[1] + bd_upper
-    
+
     #scale guess and bounds
     # INITIAL_GUESS_TOT_scaled = INITIAL_GUESS_TOT * 1e-4
     # BOUNDS_arr = np.array(BOUNDS)*1e-4
@@ -149,19 +158,20 @@ def run_optimization(poly_order):
 
     print(BOUNDS)
     print(INITIAL_GUESS_TOT)
-    
-    result = least_squares(residuals_polynomial, INITIAL_GUESS_TOT, args=(poly_order,), method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8)
+
+    result = least_squares(residuals_polynomial, INITIAL_GUESS_TOT, args=(poly_order,), method='trf', bounds=BOUNDS,
+                           verbose=2, xtol=1e-8, ftol=1e-8)
     total_time = time.time() - start_time
     print(f"Optimization finished in {total_time:.2f} seconds.")
-    
+
     # Save best-fit parameters
     # np.savetxt(OUTPUT_FILE, result.x, header="Best-fit parameters", fmt="%.6f")
     # print(f"Best-fit parameters saved to: {OUTPUT_FILE}")
     return result.x
 
-# PLOT
-def plot_fit(best_params,poly_order):
 
+# PLOT
+def plot_fit(best_params, poly_order):
     n_model_params = len(best_params) - (poly_order + 1)
     theta_model = best_params[:n_model_params]
     poly_coeffs = best_params[n_model_params:]
@@ -182,15 +192,18 @@ def plot_fit(best_params,poly_order):
     # plt.savefig("fit_result_file05.png", dpi=300)
     plt.show()
 
+
 if __name__ == "__main__":
     config = utils.config_read_bare('ysopy/config_file.cfg')
+
+    # exit(0)
     # cProfile.run(run_optimization(config['poly_order']))
     best_fit = run_optimization(config['poly_order'])
 
     # read manually
     # best_fit = np.loadtxt(OUTPUT_FILE)
 
-    plot_fit(best_fit,config['poly_order'])
+    plot_fit(best_fit, config['poly_order'])
 
 sys.exit(0)
 
@@ -205,13 +218,15 @@ pi_vals = np.linspace(BOUNDS[0][param_i], BOUNDS[1][param_i], n_points)
 pj_vals = np.linspace(BOUNDS[0][param_j], BOUNDS[1][param_j], n_points)
 PI, PJ = np.meshgrid(pi_vals, pj_vals)
 
+
 def evaluate_residual(theta_base, pi_val, pj_val, param_i, param_j):
     theta = theta_base.copy()
     theta[param_i] = pi_val
     theta[param_j] = pj_val
-    model_flux = model_spec(theta,x_obs)
+    model_flux = model_spec(theta, x_obs)
     residual = (y_obs - model_flux) / yerr
-    return np.sum(residual**2)
+    return np.sum(residual ** 2)
+
 
 # parallelize
 def parallel_grid_eval():
@@ -228,10 +243,11 @@ def parallel_grid_eval():
     print("Residual grid saved to 'residual_grid.csv'")
     return chi2_grid
 
+
 # plot
 def plot_residual_surface(chi2_grid):
     plt.figure(figsize=(8, 6))
-    contour = plt.contourf(PI, PJ, chi2_grid.T, levels=50, cmap='viridis') ## transposing the array is important here
+    contour = plt.contourf(PI, PJ, chi2_grid.T, levels=50, cmap='viridis')  ## transposing the array is important here
     plt.colorbar(label="Chi-squared")
     plt.xlabel(f"{param_names[param_i]}")
     plt.ylabel(f"{param_names[param_j]}")
@@ -239,6 +255,7 @@ def plot_residual_surface(chi2_grid):
     plt.tight_layout()
     # plt.savefig("residual_surface.png", dpi=300)
     plt.show()
+
 
 if __name__ == "__main__":
     chi2_grid = parallel_grid_eval()
