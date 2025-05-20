@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from ysopy import utils
 import warnings
 config = utils.config_read_bare("ysopy/config_file.cfg")
-
+import corner
 
 def wrap_h_slab(t_slab, n_e, tau):
     # print(t_slab)
@@ -55,13 +55,13 @@ def log_probability(theta, y, yerr):
 
 inital_guess = np.array([10, 12, 5])
 import emcee
-nwalkers = 10
+nwalkers = 5
 ndim = len(inital_guess)
 pos = np.tile(inital_guess, (nwalkers, 1))
 # print(pos)
 rand_matrix = np.random.randn(nwalkers, ndim)
 
-scale = np.array([2, 3, 3])
+scale = np.array([1.5, 3, 3])
 rand_matrix = np.multiply(rand_matrix, scale)
 
 pos = pos + rand_matrix
@@ -79,26 +79,55 @@ masked_matrix[pos[:, col_index] < 0, col_index] = 0.1
 # pos = pos + 1 * np.random.randn(nwalkers, ndim)
 obs_flux = np.load("obs_h_slab_flux.npy")
 yerr = np.zeros(len(obs_flux))
-sampler = emcee.EnsembleSampler(
-    nwalkers, ndim, log_probability, args=(obs_flux, yerr)
-)
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    sampler.run_mcmc(pos, 1000, progress=True);
 
-############# Result plotting
+# saving the chains
+filename = "tutorial.h5"
+# backend = emcee.backends.HDFBackend(filename)
+# backend.reset(nwalkers, ndim)
+#
+#
+# sampler = emcee.EnsembleSampler(
+#     nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend
+# )
+# with warnings.catch_warnings():
+#     warnings.simplefilter("ignore")
+#     sampler.run_mcmc(pos, 10, progress=True, store=True);
+#
+# ############# Result plotting
+#
+# # tslab_1000, log10_ne, tau_10, log_f = theta
+# fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
+# samples = sampler.get_chain()
+# labels = ["tslab_1000", "log10_ne", "tau_10"]
+# for i in range(ndim):
+#     ax = axes[i]
+#     ax.plot(samples[:, :, i], "k", alpha=0.3)
+#     ax.set_xlim(0, len(samples))
+#     ax.set_ylabel(labels[i])
+#     ax.yaxis.set_label_coords(-0.1, 0.5)
+#
+# axes[-1].set_xlabel("step number");
+# plt.show()
+# # exit(0)
 
-# tslab_1000, log10_ne, tau_10, log_f = theta
+reader = emcee.backends.HDFBackend(filename)
+
+
+flat_samples = reader.get_chain()
 fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-samples = sampler.get_chain()
 labels = ["tslab_1000", "log10_ne", "tau_10"]
 for i in range(ndim):
     ax = axes[i]
-    ax.plot(samples[:, :, i], "k", alpha=0.3)
-    ax.set_xlim(0, len(samples))
+    ax.plot(flat_samples[:, :, i], "k", alpha=0.3)
+    ax.set_xlim(0, len(flat_samples))
     ax.set_ylabel(labels[i])
     ax.yaxis.set_label_coords(-0.1, 0.5)
 
 axes[-1].set_xlabel("step number");
+plt.show()
+labels = ["tslab_1000", "log10_ne", "tau_10"]
+fig = corner.corner(
+    flat_samples, labels=labels, truths=[10, 13, 1]
+)
 plt.show()
 

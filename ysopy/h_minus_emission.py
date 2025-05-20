@@ -126,12 +126,13 @@ def get_h_minus_intensity(config_file):
     save_grid = config_file["save_grid_data"]
 
     # warnings
-    if 7000 * u.K > t_slab or t_slab > 11000 * u.K:
-        print(f"Warning!! Temperature value of {t_slab} is out of theoretical bounds of this model")
-    if 11 > np.log10(ne.value) or np.log10(ne.value) > 16:
-        print(f"Warning!! Density value of {np.log10(ne.value)} is out of theoretical bounds of this model")
-    if 0.1 > tau or tau > 5:
-        print(f"Warning!! Optical depth value of {tau} is out of theoretical bounds of this model")
+    if config_file["verbose"]:
+        if 7000 * u.K > t_slab or t_slab > 11000 * u.K:
+            print(f"Warning!! Temperature value of {t_slab} is out of theoretical bounds of this model")
+        if 11 > np.log10(ne.value) or np.log10(ne.value) > 16:
+            print(f"Warning!! Density value of {np.log10(ne.value)} is out of theoretical bounds of this model")
+        if 0.1 > tau or tau > 5:
+            print(f"Warning!! Optical depth value of {tau} is out of theoretical bounds of this model")
     
     # wavelength_fb = np.extract(wavelength < 16419 * u.AA, wavelength)
     kappa_fb_arr = generate_kappa_fb_arr(config_file)
