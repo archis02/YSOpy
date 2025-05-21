@@ -84,8 +84,8 @@ pos = masked_matrix
 # obs_flux = np.load("obs_h_slab_flux.npy")
 snr = 30
 obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux.npy")
-yerr = np.zeros(len(obs_flux))
-
+# yerr = np.zeros(len(obs_flux))
+yerr = np.load(f"snr_{snr}_noise.npy")
 # saving the chains
 mcmc_iter = 10000
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"

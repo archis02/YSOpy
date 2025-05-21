@@ -113,6 +113,7 @@ snr = 30
 noise = obs_flux * np.random.randn(len(obs_flux)) / snr
 noisy_flux = obs_flux + noise
 np.save(f"snr_{snr}_obs_h_slab_flux.npy", noisy_flux)
+np.save(f"snr_{snr}_noise.npy", noise)
 # plt.plot(wav_slab, noisy_flux)
 # plt.plot(wav_slab, obs_flux)
 # plt.show()
