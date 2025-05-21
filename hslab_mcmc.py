@@ -56,7 +56,7 @@ def log_probability(theta, y, yerr):
         return -np.inf
     return lp + log_likelihood(theta, y, yerr)
 
-inital_guess = np.array([10, 12, 10])
+inital_guess = np.array([10, 12, 20])
 import emcee
 nwalkers = 100
 ndim = len(inital_guess)
@@ -81,12 +81,14 @@ print(masked_matrix)
 pos = masked_matrix
 
 # pos = pos + 1 * np.random.randn(nwalkers, ndim)
-obs_flux = np.load("obs_h_slab_flux.npy")
+# obs_flux = np.load("obs_h_slab_flux.npy")
+snr = 30
+obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux.npy")
 yerr = np.zeros(len(obs_flux))
 
 # saving the chains
-mcmc_iter = 1000
-filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}.h5"
+mcmc_iter = 10000
+filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
 print(filename)
 # exit(0)
 backend = emcee.backends.HDFBackend(filename)
@@ -125,26 +127,36 @@ with warnings.catch_warnings():
 #
 # axes[-1].set_xlabel("step number");
 # plt.show()
-"""exit(0)
-
-reader = emcee.backends.HDFBackend(filename)
 
 
-flat_samples = reader.get_chain()
-fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-labels = ["tslab_1000", "log10_ne", "tau_10"]
-for i in range(ndim):
-    ax = axes[i]
-    ax.plot(flat_samples[:, :, i], "k", alpha=0.3)
-    ax.set_xlim(0, len(flat_samples))
-    ax.set_ylabel(labels[i])
-    ax.yaxis.set_label_coords(-0.1, 0.5)
+# direct = "/Users/tusharkantidas/Downloads"
+# filename = f"{direct}/{filename}"
+# reader = emcee.backends.HDFBackend(filename)
 
-axes[-1].set_xlabel("step number");
-plt.show()
-labels = ["tslab_1000", "log10_ne", "tau_10"]
-fig = corner.corner(
-    flat_samples, labels=labels, truths=[10, 13, 1]
-)
-plt.show()"""
+# flat_samples = reader.get_chain()
+# fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
+# labels = ["tslab_1000", "log10_ne", "tau_10"]
+# for i in range(ndim):
+#     ax = axes[i]
+#     ax.plot(flat_samples[:, :, i], "k", alpha=0.3)
+#     ax.set_xlim(0, len(flat_samples))
+#     ax.set_ylabel(labels[i])
+#     ax.yaxis.set_label_coords(-0.1, 0.5)
+#
+# axes[-1].set_xlabel("step number");
+# plt.show()
+# labels = ["tslab_1000", "log10_ne", "tau_10"]
+# fig = corner.corner(
+#     flat_samples,
+#     labels=labels,
+#     truths=[8, 13, 10],
+#     plot_contours=True,
+#     # quantiles=[0.16, 0.5, 0.84],
+#
+#     quantiles=[0.035, 0.5, 0.975],
+#     show_titles=True,
+#     title_kwargs={"fontsize": 12},
+#     smooth=True
+# )
+# plt.show()
 
