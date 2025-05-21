@@ -41,8 +41,8 @@ def log_likelihood(theta, obs_flux, yerr=None):
     tau = tau_10/10
 
     h_slab_flux = wrap_h_slab(tslab, ne, tau)
-    # sigma2 = yerr**2 + h_slab_flux**2 * np.exp(2 * log_f)
-    return -0.5 * np.sum((obs_flux - h_slab_flux) ** 2)
+    sigma2 = yerr**2
+    return -0.5 * np.sum(((obs_flux - h_slab_flux) ** 2)/sigma2 + np.log(sigma2))
 
 def log_prior(theta):
     tslab_1000, log10_ne,  tau_10 = theta
@@ -82,12 +82,12 @@ pos = masked_matrix
 
 # pos = pos + 1 * np.random.randn(nwalkers, ndim)
 # obs_flux = np.load("obs_h_slab_flux.npy")
-snr = 30
+snr = 50
 obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux.npy")
 # yerr = np.zeros(len(obs_flux))
 yerr = np.load(f"snr_{snr}_noise.npy")
 # saving the chains
-mcmc_iter = 10000
+mcmc_iter = 5000
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
 print(filename)
 # exit(0)

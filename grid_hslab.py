@@ -109,7 +109,7 @@ def parallel_grid_eval():
 
 """Add Gaussian noise to the H slab spec"""
 obs_flux = np.load("obs_h_slab_flux.npy")
-snr = 30
+snr = 50
 noise = obs_flux * np.random.randn(len(obs_flux)) / snr
 noisy_flux = obs_flux + noise
 np.save(f"snr_{snr}_obs_h_slab_flux.npy", noisy_flux)
