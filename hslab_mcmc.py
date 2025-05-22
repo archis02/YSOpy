@@ -62,7 +62,9 @@ def log_probability(theta, y, yerr):
 inital_guess = np.array([8.5, 12, 12])
 
 nwalkers = 100
+
 cpu_cores_used = multiprocessing.cpu_count() - 5
+
 ndim = len(inital_guess)
 pos = np.tile(inital_guess, (nwalkers, 1))
 # print(pos)
@@ -91,20 +93,22 @@ snr = 5
 
 # These are the params used to create the observed data
 # Here they are used just to read the files
-
-t_slab_arr = np.array([12000]) * u.K
-log_ne_arr = np.array([10])
+t_slab_arr = np.array([9000]) * u.K
+log_ne_arr = np.array([13])
 ne_arr = (10 ** log_ne_arr) * u.cm ** (-3)
-tau_arr = np.array([5])
+tau_arr = np.array([3])
 
 i, j, k = 0, 0, 0
-
-obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy")
+# obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux.npy")
+obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
 # yerr = np.zeros(len(obs_flux))
-yerr = np.load(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy")
+
+# yerr = np.load(f"snr_{snr}_noise.npy")
+yerr = np.load(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
 # saving the chains
 mcmc_iter = 10000
-filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
+# filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
+filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.h5"
 print(filename)
 # exit(0)
 backend = emcee.backends.HDFBackend(filename)
@@ -123,7 +127,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     with multiprocessing.get_context("fork").Pool(processes=cpu_cores_used) as pool:
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool
+            nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool, blobs_dtype=float
         )
 
         sampler.run_mcmc(pos, mcmc_iter, progress=True, store=True)

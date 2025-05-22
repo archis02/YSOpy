@@ -22,10 +22,10 @@ config = utils.config_read_bare("ysopy/config_file.cfg")
 # ne_arr = (10 ** log_ne_arr) * u.cm ** (-3)
 # tau_arr = np.array([0.1, 0.2, 0.3, 0.5, 0.75, 1, 2, 3, 4, 5])
 
-t_slab_arr = np.array([12000]) * u.K
-log_ne_arr = np.array([10])
+t_slab_arr = np.array([9000]) * u.K
+log_ne_arr = np.array([13])
 ne_arr = (10 ** log_ne_arr) * u.cm ** (-3)
-tau_arr = np.array([5])
+tau_arr = np.array([3])
 T_SLAB, NE, TAU = np.meshgrid(t_slab_arr, ne_arr, tau_arr)
 
 wav_slab = np.logspace(np.log10(config['l_min']), np.log10(config['l_max']), config['n_h']) * u.AA
@@ -80,7 +80,8 @@ with warnings.catch_warnings():
             for k in range(len(tau_arr)):
                 h_slab_flux = wrap_h_slab1(t_slab=t_slab_arr[i], n_e=ne_arr[j], tau=tau_arr[k])  # units erg/(AA s cm2)
                 # h_slab_flux = h_slab_flux.value
-                np.save(f"obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy", h_slab_flux)
+                obs_flux = h_slab_flux
+                np.save(f"obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy", h_slab_flux)
 # exit(0)
 
 
@@ -108,14 +109,14 @@ def parallel_grid_eval():
 # plt.show()
 
 """Add Gaussian noise to the H slab spec"""
-obs_flux = np.load(f"obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy")
-snr = 5
+obs_flux = np.load(f"obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
+snr = 10
 noise = obs_flux * np.random.randn(len(obs_flux)) / snr
 # noise = obs_flux * np.random.normal(0, 1/snr, len(obs_flux))
 noisy_flux = obs_flux + noise
-np.save(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy", noisy_flux)
-np.save(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy", noise)
-plt.plot(wav_slab, noisy_flux)
-plt.plot(wav_slab, obs_flux)
-plt.show()
-
+np.save(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy", noisy_flux)
+np.save(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy", noise)
+# plt.plot(wav_slab, noisy_flux)
+# plt.plot(wav_slab, obs_flux)
+# plt.show()
+#
