@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from ysopy import utils
 import warnings
 import multiprocessing
+import emcee
+
+
 config = utils.config_read_bare("ysopy/config_file.cfg")
 import corner
 
@@ -57,13 +60,14 @@ def log_probability(theta, y, yerr):
     return lp + log_likelihood(theta, y, yerr)
 
 inital_guess = np.array([8.5, 12, 12])
-import emcee
+
 nwalkers = 100
+cpu_cores_used = multiprocessing.cpu_count() - 5
 ndim = len(inital_guess)
 pos = np.tile(inital_guess, (nwalkers, 1))
 # print(pos)
-rand_matrix = np.random.randn(nwalkers, ndim)
-
+# rand_matrix = np.random.randn(nwalkers, ndim)
+rand_matrix = np.random.uniform(0, 2, size=(nwalkers, ndim))
 scale = np.array([1.5, 2, 3])
 rand_matrix = np.multiply(rand_matrix, scale)
 
@@ -79,13 +83,25 @@ masked_matrix = pos.copy()
 masked_matrix[pos[:, col_index] < 0, col_index] = 0.1
 print(masked_matrix)
 pos = masked_matrix
+
 # exit(0)
 # pos = pos + 1 * np.random.randn(nwalkers, ndim)
 # obs_flux = np.load("obs_h_slab_flux.npy")
-snr = 50
-obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux.npy")
+snr = 5
+
+# These are the params used to create the observed data
+# Here they are used just to read the files
+
+t_slab_arr = np.array([12000]) * u.K
+log_ne_arr = np.array([10])
+ne_arr = (10 ** log_ne_arr) * u.cm ** (-3)
+tau_arr = np.array([5])
+
+i, j, k = 0, 0, 0
+
+obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy")
 # yerr = np.zeros(len(obs_flux))
-yerr = np.load(f"snr_{snr}_noise.npy")
+yerr = np.load(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}.npy")
 # saving the chains
 mcmc_iter = 10000
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
@@ -105,7 +121,7 @@ with warnings.catch_warnings():
 """
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    with multiprocessing.get_context("fork").Pool() as pool:
+    with multiprocessing.get_context("fork").Pool(processes=cpu_cores_used) as pool:
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool
         )
