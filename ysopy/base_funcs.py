@@ -489,9 +489,9 @@ def generate_temp_arr(config):
         r_sub = r_visc[-1]
         dr = r_visc[1] - r_visc[0]
 
-    if config['save']:
-        np.save("radius_arr.npy", r_visc)
-        np.save("temp_arr.npy", t_visc)
+    # if config['save']:
+    #     np.save("radius_arr.npy", r_visc)
+    #     np.save("temp_arr.npy", t_visc)
 
     if plot:
         plt.plot(r_visc / const.R_sun.value, t_visc)
@@ -644,8 +644,8 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
 
         if config['verbose']:
             print("completed for temperature of", int_temp, "\nnumber of rings included:", len(radii))
-        if save:
-            np.save(f'{save_loc}/{int_temp}_flux.npy', temp_flux)
+        # if save:
+        #     np.save(f'{save_loc}/{int_temp}_flux.npy', temp_flux)
             
     wavelength = np.logspace(np.log10(l_min), np.log10(l_max), n_data)
     obs_viscous_disk_flux = viscous_disk_flux * np.cos(inclination) / (np.pi * d_star ** 2)
@@ -747,6 +747,7 @@ def magnetospheric_component_calculate(config, r_in):
         if config['verbose']:
             print("High accretion, no magnetospheric contribution")
         return spec
+    else: print("Magnetospheric contribution active")
 
     ###########################    HYDROGEN SLAB    #############################
     if config['mag_comp']=="hslab":
@@ -1051,6 +1052,7 @@ def dust_extinction_flux(config, wavelength, obs_viscous_disk_flux, obs_star_flu
 
     if config['save']:
         np.save(f'{save_loc}/extinguished_spectra.npy', total_flux)
+        np.save(f'{save_loc}/wave_arr.npy', wavelength.value)
     if config['plot']:
         plt.plot(wavelength, total_flux, label='extinguished spectrum')
         plt.xlabel("Wavelength in $\AA$ ----->")
@@ -1110,9 +1112,13 @@ def main(raw_args=None):
 
     args = parse_args(raw_args)
     dict_config = utils.config_read_bare(args.ConfigfileLocation)
+    
+    # save the data
+    dict_config['save'] = True
+    dict_config['plot'] = False
+    dict_config['verbose'] = True
 
     calculate_n_data(dict_config) # set n_data
-
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
     if dict_config["verbose"]:
@@ -1136,6 +1142,13 @@ def main(raw_args=None):
     total_flux = obs_viscous_disk_flux + obs_star_flux + obs_mag_flux + obs_dust_flux
     total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
+    
+    #save with noise
+    snr = 100
+    noise = np.random.normal(0,1/snr,total_flux.shape[0])*total_flux
+    noisy_spec = total_flux + noise
+    if dict_config['save']:
+        np.save(f"{dict_config['save_loc']}/noisy_flux_snr_{snr}.npy",noisy_spec)
 
     et = time.time()
     print(f"Total time taken : {et - st}")
@@ -1163,13 +1176,15 @@ def rad_vel_correction(wave, vel):
     return wave - del_wav
 
 if __name__ == "__main__":
-    cProfile.run("main()")
+    
+    # cProfile.run("main()")
     
     # config = utils.config_read_bare('config_file.cfg')
     # h_flux = h_emission.get_h_intensity(config)
     # plt.plot(h_flux)
     # plt.show()
-    # main()
+
+    main()
 
 '''from pypeit.core import wave
 from astropy.io import ascii

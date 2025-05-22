@@ -5,3 +5,5 @@
 __pycache__/
 /ysopy/*.npy
 /ysopy/*.log
+/ysopy/rough-work.ipynb
+/ysopy/rough-work.py
