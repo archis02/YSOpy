@@ -2,6 +2,7 @@
 *.csv
 *.npy
 *.log
+*.h5
 __pycache__/
 /ysopy/*.npy
 /ysopy/*.log

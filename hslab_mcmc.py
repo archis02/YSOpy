@@ -89,7 +89,7 @@ pos = masked_matrix
 # exit(0)
 # pos = pos + 1 * np.random.randn(nwalkers, ndim)
 # obs_flux = np.load("obs_h_slab_flux.npy")
-snr = 5
+snr = 50
 
 # These are the params used to create the observed data
 # Here they are used just to read the files
