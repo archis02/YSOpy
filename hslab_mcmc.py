@@ -59,9 +59,9 @@ def log_probability(theta, y, yerr):
         return -np.inf
     return lp + log_likelihood(theta, y, yerr)
 
-inital_guess = np.array([8.5, 12, 12])
+inital_guess = np.array([8.5, 12, 11])
 
-nwalkers = 100
+nwalkers = 30
 
 cpu_cores_used = multiprocessing.cpu_count() - 5
 
@@ -70,7 +70,7 @@ pos = np.tile(inital_guess, (nwalkers, 1))
 # print(pos)
 # rand_matrix = np.random.randn(nwalkers, ndim)
 rand_matrix = np.random.uniform(0, 2, size=(nwalkers, ndim))
-scale = np.array([1.5, 2, 3])
+scale = np.array([1.5, 2, 2.5])
 rand_matrix = np.multiply(rand_matrix, scale)
 
 pos = pos + rand_matrix

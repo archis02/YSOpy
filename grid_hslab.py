@@ -74,9 +74,9 @@ print(len(t_slab_arr), len(ne_arr), len(tau_arr))
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     for i in range(len(t_slab_arr)):
-        print("******** i", i)
+        # print("******** i", i)
         for j in range(len(ne_arr)):
-            print("*** j", j)
+            # print("*** j", j)
             for k in range(len(tau_arr)):
                 h_slab_flux = wrap_h_slab1(t_slab=t_slab_arr[i], n_e=ne_arr[j], tau=tau_arr[k])  # units erg/(AA s cm2)
                 # h_slab_flux = h_slab_flux.value
@@ -116,7 +116,13 @@ noise = obs_flux * np.random.randn(len(obs_flux)) / snr
 noisy_flux = obs_flux + noise
 np.save(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy", noisy_flux)
 np.save(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy", noise)
+
+print(f"Saved\n")
+print(f"obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
+print(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
+print(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
+
 # plt.plot(wav_slab, noisy_flux)
 # plt.plot(wav_slab, obs_flux)
 # plt.show()
-#
+
