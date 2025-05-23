@@ -33,8 +33,8 @@ filename = f"{direct}/{filename}"
 reader = emcee.backends.HDFBackend(filename)
 
 flat_samples = reader.get_chain()
-# tau = reader.get_autocorr_time()
-# print(tau)
+tau = reader.get_autocorr_time()
+print(tau)
 """
 
 burnin = int(2 * np.max(tau))
