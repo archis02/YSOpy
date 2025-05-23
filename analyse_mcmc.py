@@ -26,7 +26,7 @@ tau_arr = np.array([3])
 # filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
 # filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}.h5"
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.h5"
-
+filename = f"DE_Move_{filename}"
 
 direct = "/Users/tusharkantidas/Downloads"
 filename = f"{direct}/{filename}"

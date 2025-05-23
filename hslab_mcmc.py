@@ -109,6 +109,7 @@ yerr = np.load(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_n
 mcmc_iter = 5000
 # filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.h5"
+filename = f"DE_Move_{filename}"
 print(filename)
 # exit(0)
 backend = emcee.backends.HDFBackend(filename)
