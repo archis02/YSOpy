@@ -11,8 +11,8 @@ config = utils.config_read_bare("ysopy/config_file.cfg")
 # tslab_1000, log10_ne, tau_10, log_f = theta
 
 inital_guess = np.array([10, 12, 20])
-snr = 100
-nwalkers = 100
+snr = 50
+nwalkers = 30
 mcmc_iter = 10000
 ndim = len(inital_guess)
 
