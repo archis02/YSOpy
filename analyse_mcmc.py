@@ -13,7 +13,7 @@ config = utils.config_read_bare("ysopy/config_file.cfg")
 inital_guess = np.array([10, 12, 20])
 snr = 50
 nwalkers = 30
-mcmc_iter = 10000
+mcmc_iter = 5000
 ndim = len(inital_guess)
 
 i, j, k = 0, 0, 0
@@ -32,9 +32,9 @@ direct = "/Users/tusharkantidas/Downloads"
 filename = f"{direct}/{filename}"
 reader = emcee.backends.HDFBackend(filename)
 
-# flat_samples = reader.get_chain()
-tau = reader.get_autocorr_time()
-print(tau)
+flat_samples = reader.get_chain()
+# tau = reader.get_autocorr_time()
+# print(tau)
 """
 
 burnin = int(2 * np.max(tau))
@@ -82,7 +82,7 @@ def plot_corner():
         flat_samples,
         labels=labels,
         truths=[9, 13, 30],
-        # plot_contours=False,
+        plot_contours=False,
         # quantiles=[0.16, 0.5, 0.84],
         #
         # quantiles=[0.035, 0.5, 0.975],
@@ -92,5 +92,5 @@ def plot_corner():
     )
     plt.show()
 
-# plot_trace()
+plot_trace()
 plot_corner()

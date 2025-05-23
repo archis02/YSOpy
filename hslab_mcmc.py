@@ -113,7 +113,7 @@ filename = f"DE_Move_{filename}"
 print(filename)
 # exit(0)
 backend = emcee.backends.HDFBackend(filename)
-backend.reset(nwalkers, ndim)
+# backend.reset(nwalkers, ndim)  # commented for rerun
 
 
 """
@@ -124,6 +124,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     sampler.run_mcmc(pos, mcmc_iter, progress=True, store=True);
 """
+mcmc_iter = 25000 # Only rerun
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     with multiprocessing.get_context("fork").Pool(processes=cpu_cores_used) as pool:
