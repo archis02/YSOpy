@@ -32,9 +32,9 @@ direct = "/Users/tusharkantidas/Downloads"
 filename = f"{direct}/{filename}"
 reader = emcee.backends.HDFBackend(filename)
 
-flat_samples = reader.get_chain()
-# tau = reader.get_autocorr_time()
-# print(tau)
+# flat_samples = reader.get_chain()
+tau = reader.get_autocorr_time()
+print(tau)
 """
 
 burnin = int(2 * np.max(tau))
@@ -82,15 +82,15 @@ def plot_corner():
         flat_samples,
         labels=labels,
         truths=[9, 13, 30],
-        # plot_contours=True,
-        quantiles=[0.16, 0.5, 0.84],
+        # plot_contours=False,
+        # quantiles=[0.16, 0.5, 0.84],
         #
         # quantiles=[0.035, 0.5, 0.975],
-        show_titles=True,
+        # show_titles=True,
         title_kwargs={"fontsize": 12},
         # smooth=True
     )
     plt.show()
 
-plot_trace()
+# plot_trace()
 plot_corner()

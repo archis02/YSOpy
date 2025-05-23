@@ -106,7 +106,7 @@ obs_flux = np.load(f"snr_{snr}_obs_h_slab_flux_T{int((t_slab_arr[i]).value/1000)
 # yerr = np.load(f"snr_{snr}_noise.npy")
 yerr = np.load(f"snr_{snr}_noise_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.npy")
 # saving the chains
-mcmc_iter = 10000
+mcmc_iter = 5000
 # filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}.h5"
 filename = f"hslab_mcmc_walker_{nwalkers}_iter_{mcmc_iter}_snr_{snr}_T{int((t_slab_arr[i]).value/1000)}_logne_{log_ne_arr[j]}_tau_{tau_arr[k]}_lmin_{int(config['l_min'])}_l_max_{int(config['l_max'])}.h5"
 print(filename)
@@ -127,7 +127,11 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     with multiprocessing.get_context("fork").Pool(processes=cpu_cores_used) as pool:
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool, blobs_dtype=float
+            nwalkers, ndim, log_probability, args=(obs_flux, yerr), backend=backend, pool=pool, blobs_dtype=float,
+            moves=[
+                (emcee.moves.DEMove(), 0.8),
+                (emcee.moves.DESnookerMove(), 0.2),
+            ],
         )
 
         sampler.run_mcmc(pos, mcmc_iter, progress=True, store=True)
