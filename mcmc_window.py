@@ -51,6 +51,12 @@ def config_reader(filepath):
     # config_data['tau_u'] = float(parser['Parameters']['tau_u'])
     # config_data['tau_l'] = float(parser['Parameters']['tau_l'])
 
+    config_data['const_term_l'] = float(parser['Parameters']['const_term_l'])
+    config_data['const_term_u'] = float(parser['Parameters']['const_term_u'])
+
+    config_data['other_coeff_l'] = float(parser['Parameters']['other_coeff_l'])
+    config_data['other_coeff_u'] = float(parser['Parameters']['other_coeff_u'])
+
     return config_data
 
 def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers):
@@ -91,12 +97,11 @@ def model_spec_window(theta,config):
     # config = utils.config_read_bare('ysopy/config_file.cfg')
 
     # overwrite the given config dictionary, after SCALING
-    config['m'] = theta[0] * const.M_sun.value
-    config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
-    # config['b'] = theta[2]
-    config['inclination'] = theta[2] * 10 * np.pi / 180.0 # radians
-    # config['t_0'] = theta[4] *1000.0
-    config['t_slab'] = theta[3] *1000.0 * u.K
+    config['m'] = theta[0]/10.0 * const.M_sun.value
+    config['m_dot'] = 10**(-1.0*theta[1]) * const.M_sun.value / 31557600.0 ## Ensure the 10** here
+    config['b'] = theta[2]
+    config['inclination'] = theta[3] * np.pi / 180.0 # radians
+    config['t_slab'] = theta[4] *1000.0 * u.K
 
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array([0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
