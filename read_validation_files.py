@@ -29,16 +29,22 @@ file_pattern = os.path.join(flux_dir, '*.tbl.gz')
 
 # Get all files
 flux_files = sorted(glob.glob(file_pattern))
+wav_up = 4777.650
+wav_down = 4777.640
 
 for file in flux_files:
     data = ascii.read(file)
     data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
-    
+    wav_up = max(wav_up,np.max(data[0]))
+    wav_down = min(wav_down,np.min(data[0]))
+
     plt.figure(figsize=(20, 5))
     plt.plot(data[0], data[1], label='Normalized Flux', color='black')
-    plt.fill_between(data[0], data[1] - data[2], data[1] + data[2], color='gray', alpha=0.4, label='Error')
+    plt.fill_between(data[0], data[1] + data[2], data[1] - data[2], color='gray', alpha=0.4, label='Error')
     plt.xlabel("Wavelength")
     plt.ylabel("Normalized Flux")
     plt.title(f"file : {file}")
     plt.legend()
     plt.show()
+
+print(f"lowest {wav_down}\nhighest {wav_up}")

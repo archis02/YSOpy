@@ -1177,17 +1177,6 @@ def main(raw_args=None):
         plt.show()
     print("done")
 
-def rad_vel_correction(wave, vel):
-    """
-    Apply correction to wavelength for the doppler shift due to
-    radial velocity of the star.
-    :param wave: Quantity numpy array
-    :param vel: astropy.units.Quantity
-    :return: astropy.units.Quantity array
-    """
-    del_wav = (vel/const.c) * wave
-    return wave - del_wav
-
 # if __name__ == "__main__":
     
     # cProfile.run("main()")
@@ -1201,6 +1190,17 @@ def rad_vel_correction(wave, vel):
 
 '''from pypeit.core import wave
 from astropy.io import ascii
+
+def rad_vel_correction(wave, vel):
+    """
+    Apply correction to wavelength for the doppler shift due to
+    radial velocity of the star.
+    :param wave: Quantity numpy array
+    :param vel: astropy.units.Quantity
+    :return: astropy.units.Quantity array
+    """
+    del_wav = (vel/const.c) * wave
+    return wave - del_wav
 
 #read the data, V960 Mon
 path_to_valid = "/home/arch/yso/validation_files/"
