@@ -30,9 +30,10 @@ def rad_vel_correction(wave_ax, vel):
     del_wav = (vel/const.c) * wave_ax
     return wave_ax - del_wav
 
-# read the data, V960 Mon, initially, using file 01###############
+# read the data, V960 Mon, initially, using file 04 ###############
+# when reading a custom-stitched file, ensure that the wavelength axis is in ascending order, with no overlaps
 path_to_valid = "../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_01_flux.tbl.gz')
+data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
 data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
 wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
 data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
@@ -45,14 +46,13 @@ data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial vel
 # x_obs = np.load(path_to_valid+"wave_arr.npy")
 
 tstamp = time.time()
-OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file01_window_{tstamp}.txt'
+OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file09_window_{tstamp}.txt'
 # N_PARAMS = 5
-INITIAL_GUESS = np.array([0.60,-4.5,0.2,8.5]) #*1e2 # params = ['m', 'log_m_dot', 'inclination', 't_slab'/1000]
-BOUNDS = np.array([[0.4,-6.0,0.17,6.5], [0.8,-4.0,0.5,9.0]]) #* 1e2
+INITIAL_GUESS = np.array([0.60,-4.5,20,8.5]) # params = ['m', 'log_m_dot', 'inclination', 't_slab'/1000]
+BOUNDS = np.array([[0.4,-5.0,5.0,6.5], [1.5,-4.0,30.0,9.0]])
 BOUNDS = BOUNDS.tolist()
 
 x_obs, y_obs, yerr = data[0].value, data[1], data[2]
-print(x_obs)
 
 def model_spec_window(theta):
     '''Evaluates model in the range [l_min,l_max]. Ensure that all windows over which the shi-square is calculated lie within this range.
@@ -66,7 +66,7 @@ def model_spec_window(theta):
     config['m'] = theta[0] * const.M_sun.value
     config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
     # config['b'] = theta[2]
-    config['inclination'] = np.arcsin(theta[2]) # * np.pi / 180.0 # radians
+    config['inclination'] = theta[2] * np.pi / 180.0 # radians
     # config['t_0'] = theta[4] *1000.0
     config['t_slab'] = theta[3] *1000.0 * u.K
 
@@ -111,10 +111,10 @@ def model_spec_window(theta):
 
 # stitch the different files into one file and then define the windows on which the 
 # chi-square is to be calculated
-def residuals_windows(theta,poly_order):
+def residuals_windows(theta,poly_order,residual_len):
     start=time.time()
-    
-    residual = np.zeros_like(y_obs)
+
+    residual = np.zeros(residual_len)
     windows = config['windows'] # list of wavelength ranges in which residual is to be evaluated
     n_windows = len(windows)
     n_model_params = len(theta) - n_windows * (poly_order + 1)
@@ -124,22 +124,28 @@ def residuals_windows(theta,poly_order):
     
     for i,window in enumerate(windows):
         
-        poly_coeffs = theta[n_model_params + i*poly_order:n_model_params+(i+1)*poly_order]
+        poly_coeffs = theta[n_model_params + i*(poly_order+1):n_model_params+(i+1)*(poly_order+1)]
 
+        # trim all arrays to the required window
         window_obs_l = np.searchsorted(x_obs,window[0])
         window_obs_u = np.searchsorted(x_obs,window[1])
         window_obs = x_obs[window_obs_l:window_obs_u]
-        flux_obs = y_obs[window_obs_l:window_obs_u]
+        flux_obs_window = y_obs[window_obs_l:window_obs_u]
         err_window = yerr[window_obs_l:window_obs_u]
 
+        # interpolate the model to the same axis
         model_flux_window = np.interp(window_obs,wave,model_flux)
+        
+        # continuum correction
         poly_func = np.polyval(poly_coeffs, window_obs)
 
-        residual_window = (flux_obs - model_flux_window * poly_func)/err_window
+        residual_window = (flux_obs_window - model_flux_window * poly_func)/err_window
 
-        residual[counter:counter+residual_window.shape[0]] = residual_window
+        # assign to the subset of the residual array
+        residual[counter:counter+residual_window.shape[0]:] = residual_window
         counter += residual_window.shape[0]
 
+    # show time taken to run, and parameters
     print(f"Evaluated at theta={np.round(theta_model, 6)} | "
           f"poly={np.round(theta[n_model_params:], 6)} | "
           f"time: {time.time() - start:.3f}s")
@@ -147,7 +153,8 @@ def residuals_windows(theta,poly_order):
     return residual
 
 
-def run_optimization_window(poly_order,n_windows):
+def run_optimization_window(config,n_windows):
+    poly_order = config['poly_order']
     print(f"Starting least-sq optimization...\nThe continuum is a polynomial of order {poly_order}")
     start_time = time.time()
 
@@ -159,14 +166,29 @@ def run_optimization_window(poly_order,n_windows):
     bd_upper = [1] * poly_order + [1.5]
     BOUNDS[0] = BOUNDS[0] + bd_lower*n_windows
     BOUNDS[1] = BOUNDS[1] + bd_upper*n_windows
+
+    # calculate the residual array length
+    residual_len = 0
+    for i, window in enumerate(config['windows']):
+        window_obs_l = np.searchsorted(x_obs,window[0])
+        window_obs_u = np.searchsorted(x_obs,window[1])
+        residual_len += (window_obs_u-window_obs_l)
+    
+
+    # set step size when performing least-sqr minimization
     ## IMPORTANT: do not make the step size too small for m and m_dot, it should be comparable to the step size for inclination
-    result = least_squares(residuals_windows, INITIAL_GUESS_TOT, args=(poly_order,), method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8, diff_step=[3e-2,1e-2,5e-3,1e-3,1e-3,1e-5,1e-3,1e-5])
+    diff_step_model = [3e-2,1e-2,5e-3,1e-3] # for model params
+    diff_step_poly = [1e-3,1e-5]*n_windows # for continua, this can be customized as required
+    diff_step = diff_step_model + diff_step_poly
+    result = least_squares(residuals_windows, INITIAL_GUESS_TOT, args=(poly_order,residual_len), method='trf', bounds=BOUNDS, verbose=2, xtol=1e-8, ftol=1e-8, diff_step=diff_step)
+
     total_time = time.time() - start_time
     print(f"Optimization finished in {total_time:.2f} seconds.")
     
     # Save best-fit parameters
     np.savetxt(OUTPUT_FILE, result.x, header="Best-fit parameters", fmt="%.6f")
-    print(f"Best-fit parameters saved to: {OUTPUT_FILE}")
+    print(f"Best-fit parameters saved to: {OUTPUT_FILE}"
+          f"\n Paramters: {result.x}")
     return result.x
 
 def plot_fit_windows(config, best_params):
@@ -187,7 +209,7 @@ def plot_fit_windows(config, best_params):
 
         plt.plot(x_obs[wave_obs_l:wave_obs_u], y_obs[wave_obs_l:wave_obs_u], label="Observed", color='black')
 
-        poly_coeffs = best_params[n_model_params+i*poly_order:n_model_params+(i+1)*poly_order]
+        poly_coeffs = best_params[n_model_params+i*(poly_order+1):n_model_params+(i+1)*(poly_order+1)]
         wave_model_trimmed_l = np.searchsorted(wave_ax,window[0])
         wave_model_trimmed_u = np.searchsorted(wave_ax,window[1])
         poly_func = np.polyval(poly_coeffs, wave_ax)
@@ -205,6 +227,10 @@ def plot_fit_windows(config, best_params):
     plt.savefig(f"fit_result_file01_{tstamp}.png", dpi=300)
     plt.show()
 
+##################################################################
+# Run least-square optimization
+##################################################################
+
 if __name__ == "__main__":
     
     config = utils.config_read_bare('ysopy/config_file.cfg')
@@ -216,10 +242,68 @@ if __name__ == "__main__":
 
     # cProfile.run(run_optimization(config['poly_order']))
     
-    best_fit = run_optimization_window(config['poly_order'],2)
+    best_fit = run_optimization_window(config,n_windows=2)
 
     # read manually
-    # OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file01_window_1747897401.1750617.txt'
+    # OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file01_window_1747907636.1083474.txt'
     # best_fit = np.loadtxt(OUTPUT_FILE)
 
     plot_fit_windows(config,best_fit)
+
+sys.exit(0)
+
+##################################################################
+#### residual surface plot over m and log_m_dot
+##################################################################
+
+config = utils.config_read_bare('ysopy/config_file.cfg')
+
+param_names = ['m', 'log_m_dot', 'inclination', 't_slab/1000']
+param_i, param_j = 0, 1  # parameters to vary
+n_points = 20
+pi_vals = np.linspace(BOUNDS[0][param_i], BOUNDS[1][param_i], n_points)
+pj_vals = np.linspace(BOUNDS[0][param_j], BOUNDS[1][param_j], n_points)
+PI, PJ = np.meshgrid(pi_vals, pj_vals)
+
+def evaluate_residual(theta_base, pi_val, pj_val, param_i, param_j):
+    theta = theta_base.copy()
+    theta[param_i] = pi_val
+    theta[param_j] = pj_val
+    model_flux,wave_ax = model_spec_window(theta,x_obs)
+    residual = (y_obs - model_flux) / yerr
+    return np.sum(residual**2)
+
+# parallelize
+def parallel_grid_eval():
+    st = time.time()
+    print("Starting parallel residual surface evaluation...")
+
+    grid_points = [(pi, pj) for pi in pi_vals for pj in pj_vals]
+    with mp.Pool(mp.cpu_count()) as pool:
+        func = partial(evaluate_residual, INITIAL_GUESS, param_i=param_i, param_j=param_j)
+        chi2_flat = pool.starmap(func, grid_points)
+
+    chi2_grid = np.array(chi2_flat).reshape(n_points, n_points)
+
+    # !! ** !! CHANGE FILE NUMBER HERE !! ** !!
+    np.savetxt("residual_grid_file_04.txt", chi2_grid, delimiter=",", fmt="%.6f")
+    et = time.time()
+    print(f"Residual grid saved to 'residual_grid_file_04.txt' ... time taken = {et-st}")
+    return chi2_grid
+
+# plot
+def plot_residual_surface(chi2_grid):
+    plt.figure(figsize=(8, 6))
+    contour = plt.contourf(PI, PJ, chi2_grid.T, levels=20, cmap='viridis') ## transposing the array is important here
+    plt.colorbar(label="Chi-squared")
+    plt.xlabel(f"{param_names[param_i]}")
+    plt.ylabel(f"{param_names[param_j]}")
+    plt.title("Residual Surface")
+    plt.tight_layout()
+    plt.savefig("residual_surface_file_04.png", dpi=300)
+    plt.show()
+
+if __name__ == "__main__":
+    chi2_grid = parallel_grid_eval()
+    # chi2_grid = np.load
+    plot_residual_surface(chi2_grid)

@@ -30,40 +30,13 @@ def rad_vel_correction(wave_ax, vel):
     del_wav = (vel/const.c) * wave_ax
     return wave_ax - del_wav
 
-# read the data, V960 Mon, initially, using file 04###############
-path_to_valid = "../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_07_flux.tbl.gz')
-data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
-wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
-data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
-
-# # test fit to model itself, without any noise
-# path_to_valid = "/home/arch/yso/results/synthetic_fit/"
-# # y_obs = np.load(path_to_valid+"extinguished_spectra.npy")
-# y_obs = np.load(path_to_valid+"noisy_flux_snr_100.npy")
-# y_obs = y_obs/np.median(y_obs)
-# x_obs = np.load(path_to_valid+"wave_arr.npy")
-
-tstamp = time.time()
-OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file07_{tstamp}.txt'
-# N_PARAMS = 5
-INITIAL_GUESS = np.array([0.60,-4.5,0.2,8.5]) #*1e2 # params = ['m', 'log_m_dot', 'inclination', 't_slab'/1000]
-BOUNDS = np.array([[0.4,-6.0,0.17,6.5], [0.8,-4.0,0.5,9.0]]) #* 1e2
-BOUNDS = BOUNDS.tolist()
-
-x_obs, y_obs, yerr = data[0].value, data[1], data[2]
-# print(x_obs)
-
 def model_spec(theta,wavelength):
-    
-    #scale back
-    theta = theta#*1e-2
     
     config = utils.config_read_bare('ysopy/config_file.cfg')
     config['m'] = theta[0] * const.M_sun.value
     config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
     # config['b'] = theta[2]
-    config['inclination'] = np.arcsin(theta[2]) # * np.pi / 180.0 # radians
+    config['inclination'] = theta[2] * np.pi / 180.0 # radians
     # config['t_0'] = theta[4] *1000.0
     config['t_slab'] = theta[3] *1000.0 * u.K
 
@@ -84,20 +57,20 @@ def model_spec(theta,wavelength):
     config["r_star"] = func_rad(theta[0]) * const.R_sun.value
 
     #run model
-    t0 = time.time()
+    # t0 = time.time()
     bf.calculate_n_data(config)
     dr, t_max, d, r_in, r_sub = bf.generate_temp_arr(config)
     # print(config['n_data'])
     wave_ax, obs_viscous_disk_flux = bf.generate_visc_flux(config, d, t_max, dr)
-    t1 = time.time()
+    # t1 = time.time()
     obs_mag_flux = bf.magnetospheric_component_calculate(config, r_in)
-    t2 = time.time()
+    # t2 = time.time()
     obs_dust_flux = bf.generate_dusty_disk_flux(config, r_in, r_sub)
-    t3 = time.time()
+    # t3 = time.time()
     obs_star_flux = bf.generate_photosphere_flux(config)
-    t4 = time.time()
+    # t4 = time.time()
     total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
-    t5 = time.time()
+    # t5 = time.time()
 
     # interpolate to required wavelength
     result_spec = np.interp(wavelength, wave_ax,total_flux)
@@ -179,33 +152,60 @@ def plot_fit(best_params,poly_order):
     plt.savefig(f"fit_result_file07_{tstamp}.png", dpi=300)
     plt.show()
 
-if __name__ == "__main__":
-    
-    config = utils.config_read_bare('ysopy/config_file.cfg')
-    
-    #switch off plot and save
-    config['plot'] = False
-    config['save'] = False
-    config['verbose'] = False
+# read the data, V960 Mon
+path_to_valid = "../../../validation_files/"
+data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_05_flux.tbl.gz')
+data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
+wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
+data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
 
-    # cProfile.run(run_optimization(config['poly_order']))
-    
-    best_fit = run_optimization(config['poly_order'])
+x_obs, y_obs, yerr = data[0].value, data[1], data[2]
 
-    # read manually
-    # best_fit = np.loadtxt(OUTPUT_FILE)
+# # test fit to model itself, without any noise
+# path_to_valid = "/home/arch/yso/results/synthetic_fit/"
+# # y_obs = np.load(path_to_valid+"extinguished_spectra.npy")
+# y_obs = np.load(path_to_valid+"noisy_flux_snr_100.npy")
+# y_obs = y_obs/np.median(y_obs)
+# x_obs = np.load(path_to_valid+"wave_arr.npy")
 
-    plot_fit(best_fit,config['poly_order'])
+tstamp = time.time()
 
-sys.exit(0)
+OUTPUT_FILE = f'/home/arch/yso/results/best_fit_file01_{tstamp}.txt'
+INITIAL_GUESS = np.array([0.60,-4.5,15,8.5]) # params = ['m', 'log_m_dot', 'inclination', 't_slab'/1000]
+BOUNDS = np.array([[0.3,-5.0,10,6.5], [1.4,-4.0,30,9.0]])
+BOUNDS = BOUNDS.tolist()
 
 ##################################################################
-'''
-#### residual surface plot over m and log_m_dot
+# Run least-square optimization
+##################################################################
 
-param_names = ['m', 'log_m_dot', 'b', 'inclination', 't_0/1000', 't_slab/1000']
+# if __name__ == "__main__":
+    
+#     config = utils.config_read_bare('ysopy/config_file.cfg')
+    
+#     #switch off plot and save
+#     config['plot'] = False
+#     config['save'] = False
+#     config['verbose'] = False
+
+#     # cProfile.run(run_optimization(config['poly_order']))
+    
+#     best_fit = run_optimization(config['poly_order'])
+
+#     # read manually
+#     # best_fit = np.loadtxt(OUTPUT_FILE)
+
+#     plot_fit(best_fit,config['poly_order'])
+
+# sys.exit(0)
+
+##################################################################
+#### residual surface plot over m and log_m_dot
+##################################################################
+
+param_names = ['m', 'log_m_dot', 'inclination', 't_slab/1000']
 param_i, param_j = 0, 1  # parameters to vary
-n_points = 10
+n_points = 20
 pi_vals = np.linspace(BOUNDS[0][param_i], BOUNDS[1][param_i], n_points)
 pj_vals = np.linspace(BOUNDS[0][param_j], BOUNDS[1][param_j], n_points)
 PI, PJ = np.meshgrid(pi_vals, pj_vals)
@@ -220,6 +220,7 @@ def evaluate_residual(theta_base, pi_val, pj_val, param_i, param_j):
 
 # parallelize
 def parallel_grid_eval():
+    st = time.time()
     print("Starting parallel residual surface evaluation...")
 
     grid_points = [(pi, pj) for pi in pi_vals for pj in pj_vals]
@@ -229,23 +230,24 @@ def parallel_grid_eval():
 
     chi2_grid = np.array(chi2_flat).reshape(n_points, n_points)
 
-    # np.savetxt("residual_grid.csv", chi2_grid, delimiter=",", fmt="%.6f")
-    print("Residual grid saved to 'residual_grid.csv'")
+    np.savetxt("residual_grid_file_05.txt", chi2_grid, delimiter=",", fmt="%.6f")
+    et = time.time()
+    print(f"Residual grid saved to 'residual_grid_file_05.txt' ... time taken = {et-st}")
     return chi2_grid
 
 # plot
 def plot_residual_surface(chi2_grid):
     plt.figure(figsize=(8, 6))
-    contour = plt.contourf(PI, PJ, chi2_grid.T, levels=50, cmap='viridis') ## transposing the array is important here
+    contour = plt.contourf(PI, PJ, chi2_grid.T, levels=20, cmap='viridis') ## transposing the array is important here
     plt.colorbar(label="Chi-squared")
     plt.xlabel(f"{param_names[param_i]}")
     plt.ylabel(f"{param_names[param_j]}")
     plt.title("Residual Surface")
     plt.tight_layout()
-    # plt.savefig("residual_surface.png", dpi=300)
+    plt.savefig("residual_surface_file_05.png", dpi=300)
     plt.show()
 
 if __name__ == "__main__":
     chi2_grid = parallel_grid_eval()
+    # chi2_grid = np.load
     plot_residual_surface(chi2_grid)
-'''

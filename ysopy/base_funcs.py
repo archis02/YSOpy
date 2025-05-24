@@ -83,17 +83,21 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None, ret_full
     ----------
     trimmed_wave : numpy.ndarray
         array having the wavelength axis of the read BT-Settl data, in units of Angstrom,
-        a padding of 20 A is left to avoid errors in interpolation
+        a padding of 20 A is left to avoid errors in interpolation, wavelengths in air
 
     trimmed_flux : numpy.ndarray
         array of flux values, in units of erg / (cm^2 s A)
     """
 
     loc = config['bt_settl_path']
-    l_min = config['l_min']
+    l_min = config['l_min'] 
     l_max = config['l_max']
     n_data = config['n_data']
 
+    if ret_full_wavelength_ax:
+        l_min = 1000.0
+        l_max = 50000.0
+    
     if temperature >= 100:
         address = f"{loc}/lte{temperature}-{logg}-0.0a+0.0.BT-Settl.7.dat.npy"
     elif (temperature > 25) and temperature < 100:
@@ -105,31 +109,29 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None, ret_full
     
     data = load_npy_file(address)
 
+    # convert to air, for trimming
+    l_min_air = wave.vactoair(l_min * u.AA).value
+    l_max_air = wave.vactoair(l_max * u.AA).value
+
     # trim data to region of interest, extra region left for re-interpolation
     l_pad = 20
     if r_in is not None:
         v_max = np.sqrt(const.G.value * config['m'] / r_in) * np.sin(config['inclination']) / const.c.value
-        l_pad = l_max * v_max
+        l_pad = l_max_air * v_max
 
     if ret_full_wavelength_ax:
         l_min = 1000.0
         l_max = 50000.0
     
-    l_bound = np.searchsorted(data[0],l_min - 1.5 * l_pad)
-    u_bound = np.searchsorted(data[0],l_max + 1.5 * l_pad)
+    l_bound = np.searchsorted(data[0],l_min_air - 1.5 * l_pad)
+    u_bound = np.searchsorted(data[0],l_max_air + 1.5 * l_pad)
     trimmed_wave = data[0][l_bound:u_bound] #* u.AA
     trimmed_flux = data[1][l_bound:u_bound] #* (u.erg / (u.cm * u.cm * u.s * u.AA))
-
-    # cond1 = l_min.value - 1.5 * l_pad < data[0]
-    # cond2 = data[0] < l_max.value + 1.5 * l_pad
-    # trimmed_ids = np.logical_and(cond1,cond2)
-    # trimmed_wave = data[0][trimmed_ids].astype(np.float64) * u.AA
-    # trimmed_flux = data[1][trimmed_ids].astype(np.float64) * (u.erg / (u.cm * u.cm * u.s * u.AA))
 
     # for low-resolution data, make a linear re-interpolation
     if 20 <= temperature <= 25:
         x, y = unif_reinterpolate(config, trimmed_wave, trimmed_flux, l_pad)
-        trimmed_wave = np.linspace(l_min - l_pad, l_max + l_pad, n_data, endpoint=True) #* u.AA
+        trimmed_wave = np.linspace(l_min_air - l_pad, l_max_air + l_pad, n_data, endpoint=True) #* u.AA
         trimmed_flux = np.interp(trimmed_wave, x, y) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
     return trimmed_wave, trimmed_flux
@@ -330,6 +332,7 @@ def logspace_reinterp(config, wavelength, flux):
     l_min = config['l_min']
     l_max = config['l_max']
     n_data = config['n_data']
+
     wavelength_req = np.logspace(np.log10(l_min), np.log10(l_max), n_data)
     flux_final = np.interp(wavelength_req, wavelength, flux) #* u.erg / (u.cm * u.cm * u.s * u.AA)
 
@@ -585,9 +588,9 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
 
     Returns
     ----------
-    wavelength : astropy.units.Quantity
-        wavelength array in units of Angstrom
-    obs_viscous_disk_flux : astropy.units.Quantity
+    wavelength : numpy.ndarray
+        wavelength array in units of Angstrom, in vacuum
+    obs_viscous_disk_flux : numpy.ndarray
         observed flux from the viscous disk, in units of erg / (cm^2 s A)
     """
     plot = config['plot']
@@ -599,8 +602,10 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
     m = config['m']
     
     # change air to vac, this requires astropy quantities, why am I doing this step????????
-    l_min = wave.vactoair(config['l_min'] * u.AA).value
-    l_max = wave.vactoair(config['l_max'] * u.AA).value
+    # l_min = wave.vactoair(config['l_min'] * u.AA).value
+    # l_max = wave.vactoair(config['l_max'] * u.AA).value
+    l_min = config['l_min']
+    l_max = config['l_max']
     n_data = config['n_data']
 
     viscous_disk_flux = np.zeros(n_data)
@@ -618,8 +623,11 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
             logg = 1.5
 
         if len(radii) != 0:
-            wavelength, flux = read_bt_settl_npy(config, int_temp, logg, r_in, ret_full_wavelength_ax=True)
-
+            # get the wavelength (in AIR) and flux
+            wavelength_air, flux = read_bt_settl_npy(config, int_temp, logg, r_in, ret_full_wavelength_ax=True)
+            # convert to vacuum
+            wavelength = wave.airtovac(wavelength_air*u.AA).value
+            
         for r in radii:
 
             if inclination == 0:
@@ -646,10 +654,10 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
             print("completed for temperature of", int_temp, "\nnumber of rings included:", len(radii))
         # if save:
         #     np.save(f'{save_loc}/{int_temp}_flux.npy', temp_flux)
-            
+    
+    # wavelength must be redefined here, because x_throw is not in scope here
     wavelength = np.logspace(np.log10(l_min), np.log10(l_max), n_data)
     obs_viscous_disk_flux = viscous_disk_flux * np.cos(inclination) / (np.pi * d_star ** 2)
-    # obs_viscous_disk_flux = obs_viscous_disk_flux.to(u.erg / (u.cm ** 2 * u.s * u.AA))
 
     if save:
         np.save(f'{save_loc}/disk_component.npy', obs_viscous_disk_flux)
@@ -660,8 +668,8 @@ def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
         plt.title("Viscous Disk SED")
         plt.show()
 
-    #change wavelength axis to vacuum #### why???????
-    wavelength = wave.airtovac(wavelength * u.AA).value
+    # #change wavelength axis to vacuum #### why???????
+    # wavelength = wave.airtovac(wavelength * u.AA).value
 
     return wavelength, obs_viscous_disk_flux
 
@@ -680,9 +688,10 @@ def generate_photosphere_flux(config):
         flux array due to the stellar photosphere
     """
     l_min = config['l_min']
-    l_min = wave.vactoair(l_min * u.AA).value
     l_max = config['l_max']
-    l_max = wave.vactoair(l_max * u.AA).value
+    # convert to air
+    l_min_air = wave.vactoair(l_min * u.AA).value
+    l_max_air = wave.vactoair(l_max * u.AA).value
 
     log_g_star = config['log_g_star']
     t_star = config["t_star"]
@@ -694,12 +703,14 @@ def generate_photosphere_flux(config):
     address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.npy"
     data = np.load(address)
 
-    l_bound = np.searchsorted(data[0],l_min - 10.0)
-    u_bound = np.searchsorted(data[0],l_max + 10.0)
+    l_bound = np.searchsorted(data[0],l_min_air - 10.0)
+    u_bound = np.searchsorted(data[0],l_max_air + 10.0)
     x2 = data[0][l_bound:u_bound]
     y2 = data[1][l_bound:u_bound]
 
-    wavelength, y_new_star = logspace_reinterp(config, x2, y2)
+    x2_vac = wave.airtovac(x2*u.AA).value
+
+    wavelength, y_new_star = logspace_reinterp(config, x2_vac, y2)
     obs_star_flux = y_new_star * (r_star / d_star) ** 2.0
 
     if config['plot']:
@@ -1074,34 +1085,36 @@ def parse_args(raw_args=None):
 
 def total_spec(dict_config):
 
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(filename='timer_bf.log', encoding='utf-8', level=logging.DEBUG)
-    logger.info(str(dict_config))
+    # logger = logging.getLogger(__name__)
+    # logging.basicConfig(filename='timer_bf.log', encoding='utf-8', level=logging.DEBUG)
+    # logger.info(str(dict_config))
     
     t1 = time.time()
     calculate_n_data(dict_config) # set n_data
     dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
     t2 = time.time()
-    logger.info(f'Viscous disk done, time taken : {t2 - t1}')
+    # logger.info(f'Viscous disk done, time taken : {t2 - t1}')
     print(f'Viscous disk done, time taken : {t2 - t1}')
 
     obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
     t3 = time.time()
-    logger.info(f"Magnetic component done, time taken :{t3-t2}")
+    # logger.info(f"Magnetic component done, time taken :{t3-t2}")
     print(f"Magnetic component done, time taken :{t3-t2}")
 
     obs_dust_flux = generate_dusty_disk_flux(dict_config, r_in, r_sub)
     t4 = time.time()
-    logger.info(f"Dust component done, time taken : {t4-t3}")
+    # logger.info(f"Dust component done, time taken : {t4-t3}")
     print(f"Dust component done, time taken : {t4-t3}")
 
     obs_star_flux = generate_photosphere_flux(dict_config)
     t5 = time.time()
-    logger.info(f"Photospheric component done, time taken {t5-t4}")
+    # logger.info(f"Photospheric component done, time taken {t5-t4}")
     print(f"Photospheric component done, time taken {t5-t4}")
     total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
+    total_flux /= np.median(total_flux)
+
     return wavelength, total_flux
 
 
@@ -1175,7 +1188,7 @@ def rad_vel_correction(wave, vel):
     del_wav = (vel/const.c) * wave
     return wave - del_wav
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
     # cProfile.run("main()")
     
@@ -1184,22 +1197,26 @@ if __name__ == "__main__":
     # plt.plot(h_flux)
     # plt.show()
 
-    main()
+    # main()
 
 '''from pypeit.core import wave
 from astropy.io import ascii
 
 #read the data, V960 Mon
-path_to_valid = "../../../../validation_files/"
+path_to_valid = "/home/arch/yso/validation_files/"
 data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
 data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+# print(f" data[2] {data[2].unit}")
 
-#vac to air correction for given data
-wavelengths_air = wave.vactoair(data[0]*u.AA)
-data[0] = rad_vel_correction(wavelengths_air, -40.3 * u.km / u.s)# from header file
-plt.plot(data[0],data[1])
-plt.show()
+# vac to air correction for given data
+# wavelengths_air = wave.vactoair(data[0]*u.AA)
+data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s).value  # from header file
+plt.plot(data[0],data[1],label = "Obseved flux")
+plt.fill_between(data[0], data[1] - data[2], data[1] + data[2], color='gray', alpha=0.4, label='Error')
 
-dict_config = utils.config_read("config_file.cfg")
-dr, t_max, d, r_in, r_sub = generate_temp_arr(dict_config)
-wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)'''
+# get model spectra
+dict_config = utils.config_read_bare("config_file.cfg")
+wave_model, flux_model = total_spec(dict_config)
+plt.plot(wave_model, flux_model, label="model")
+plt.legend()
+plt.show()'''

@@ -16,14 +16,14 @@ def rad_vel_correction(wave_ax, vel):
     return wave_ax - del_wav
 
 #read the data, V960 Mon
-path_to_valid = "../../../validation_files/"
+# path_to_valid = "../../../validation_files/"
 # data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_0_flux.tbl.gz')
 # data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
 # wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
 # data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file
 
 # Define base path
-path_to_valid = "../../../validation_files/"
+path_to_valid = "/home/arch/yso/validation_files/"
 flux_dir = os.path.join(path_to_valid, 'KOA_93088/HIRES/extracted/tbl/ccd1/flux/')
 file_pattern = os.path.join(flux_dir, '*.tbl.gz')
 

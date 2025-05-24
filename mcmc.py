@@ -23,7 +23,7 @@ np.seterr(all="ignore") # IGNORE numpy warnings
 
 def config_reader(filepath):
     """
-    Read the config file containing the bounds for each parameter
+    Read the config file containing the bounds for each parameter, i.e. mcmc_config.cfg
     """
     parser = ConfigParser()
     parser.read(filepath)
@@ -57,8 +57,11 @@ def config_reader(filepath):
 
 
 def generate_initial_conditions(config_data,n_walkers):
+    '''
+    Generates initial conditions by drawing samples from a known distribution in the parameter space.
+    If a gaussian is used, the points outside the limits mentioned in the config file must be manually excluded.'''
 
-    # np.random.seed(123456)
+    np.random.seed(123456)
     
     # params = ['m', 'log_m_dot', 'b', 'inclination',  'log_n_e', 'r_star', 't_0', 't_slab', 'tau']
     params = ['m', 'log_m_dot', 'b', 'inclination', 't_0']
@@ -68,9 +71,12 @@ def generate_initial_conditions(config_data,n_walkers):
         low = config_data[param + '_l']
         high = config_data[param + '_u']
 
-        #this will generate the initial condition close to middle of the interval
-        #initial_conditions[:, i] = np.random.normal(loc = 0.5*(low+high), scale = (high-low)/5, size=n_walkers)
+        # Gaussian: this will generate the initial condition close to middle of the interval
+        # initial_conditions[:, i] = np.random.normal(loc = 0.5*(low+high), scale = (high-low)/5, size=n_walkers)
+        
+        # uniform distribution
         initial_conditions[:,i] = np.random.uniform(low,high,size=n_walkers)
+
     return initial_conditions
 
 
@@ -155,6 +161,63 @@ def total_spec(theta,wavelength):
 
     return result_spec
 
+def model_spec_window(theta,config):
+    '''Evaluates model in the wavelength range [l_min,l_max].
+    Ensure that all windows over which the chi-square is calculated lie within this range.
+    
+    Parameters
+    ----------
+    theta: list
+        list of parameters which are varied as the least-squre fitting is done
+    '''
+
+    # config = utils.config_read_bare('ysopy/config_file.cfg')
+    # overwrite the given config dictionary
+    config['m'] = theta[0] * const.M_sun.value
+    config['m_dot'] = 10**theta[1] * const.M_sun.value / 31557600.0 ## Ensure the 10** here
+    # config['b'] = theta[2]
+    config['inclination'] = theta[2] * np.pi / 180.0 # radians
+    # config['t_0'] = theta[4] *1000.0
+    config['t_slab'] = theta[3] *1000.0 * u.K
+
+    # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
+    m = np.array([0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
+         0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4])
+    temp_arr = np.array([2345, 2504, 2598, 2710, 2779, 2824, 2864, 2897, 2896, 2897, 2898, 2908, 2936, 2955, 3012, 3078, 3142, 3226,
+         3428, 3634, 3802, 3955, 4078, 4192, 4290, 4377, 4456, 4529, 4596, 4658])
+    rad_arr = np.array([0.271, 0.326, 0.372, 0.467, 0.536, 0.628, 0.702, 0.781, 0.803, 0.829, 0.877, 0.959, 1.002, 1.079, 1.214, 1.327,
+         1.465, 1.503, 1.636, 1.753, 1.87, 1.971, 2.096, 2.2, 2.31, 2.416, 2.52, 2.612, 2.71, 2.797])
+    func_temp = interp1d(m, temp_arr)
+    func_rad = interp1d(m, rad_arr)
+
+    config["t_star"] = int(func_temp(theta[0])/100.0) * 100.0
+    config["r_star"] = func_rad(theta[0]) * const.R_sun.value
+
+    #run model
+    # t0 = time.time()
+    bf.calculate_n_data(config)
+    dr, t_max, d, r_in, r_sub = bf.generate_temp_arr(config)
+    # print(config['n_data'])
+    wave_ax, obs_viscous_disk_flux = bf.generate_visc_flux(config, d, t_max, dr)
+    # t1 = time.time()
+    obs_mag_flux = bf.magnetospheric_component_calculate(config, r_in)
+    # t2 = time.time()
+    obs_dust_flux = bf.generate_dusty_disk_flux(config, r_in, r_sub)
+    # t3 = time.time()
+    obs_star_flux = bf.generate_photosphere_flux(config)
+    # t4 = time.time()
+    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
+    # t5 = time.time()
+    total_flux /= np.median(total_flux)
+
+    # print(f"model run ... "
+    #       f"\nvisc disk : {t1-t0:.2f}"
+    #       f"\nshock: {t2-t1:.2f}"
+    #       f"\ndusty disk: {t3-t2:.2f}"
+    #       f"\nphotosphere: {t4-t3:.2f}")
+
+    return wave_ax, total_flux
+
 
 def log_prior(theta):
     """
@@ -181,6 +244,47 @@ def log_likelihood(theta):
     model = total_spec(theta,wavelength)
     sigma2 = data[2]**2
     return -0.5 *( np.sum((data[1] - model) ** 2 / sigma2 + np.log(sigma2)) )
+
+def log_likelihood_window(theta, config):
+    """
+    Compute log-likelihood using windowed residuals and independent continuum correction per window.
+    Assumes data arrays x_obs (wavelengths), y_obs (normalized flux), yerr (errors), 
+    and a model_spec_window function that returns (wavelength, model_flux).
+    """
+    poly_order = config['poly_order']
+    windows = config['windows']  # list of (lower, upper) wavelength bounds for each window
+    n_windows = len(windows)
+    n_model_params = len(theta) - n_windows * (poly_order + 1)
+    theta_model = theta[:n_model_params]
+
+    # Model spectrum (full)
+    wave_model, model_flux = model_spec_window(theta_model)
+
+    log_like = 0.0
+    for i, window in enumerate(windows):
+        # Get the polynomial coefficients for this window
+        poly_coeffs = theta[n_model_params + i * (poly_order + 1) : n_model_params + (i + 1) * (poly_order + 1)]
+
+        # Get indices for this window
+        l_idx = np.searchsorted(x_obs, window[0])
+        u_idx = np.searchsorted(x_obs, window[1])
+        window_obs = x_obs[l_idx:u_idx]
+        flux_obs_window = y_obs[l_idx:u_idx]
+        err_window = yerr[l_idx:u_idx]
+
+        # Interpolate model to the observed window wavelengths
+        model_flux_window = np.interp(window_obs, wave_model, model_flux)
+
+        # Apply the polynomial continuum correction
+        poly_func = np.polyval(poly_coeffs, window_obs)
+        model_corrected = model_flux_window * poly_func
+
+        # Compute log-likelihood contribution from this window
+        sigma2 = err_window ** 2
+        log_like += -0.5 * np.sum((flux_obs_window - model_corrected) ** 2 / sigma2 + np.log(sigma2))
+
+    return log_like
+
 
 
 def log_probability(theta): # gives the posterior probability
