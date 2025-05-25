@@ -15,6 +15,7 @@ import time
 from multiprocessing import Pool
 import os
 import logging
+import sys
 
 # logger = logging.getLogger(__name__)
 # logging.basicConfig(filename='mcmc.log', encoding='utf-8', level=logging.DEBUG)
@@ -67,7 +68,7 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers):
     np.random.seed(123456)
     
     params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab']
-    initial_conditions = np.zeros((n_walkers, n_params))
+    initial_conditions = np.zeros((n_walkers, n_params + n_windows*(poly_order+1)))
 
     for i, param in enumerate(params):
         low = config_data[param + '_l']
@@ -77,11 +78,13 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers):
         initial_conditions[:,i] = np.random.uniform(low,high,size=n_walkers)
 
     # add initial conditions for the continuum
-    poly_params_guess = np.array([0.0]*poly_order+[1.0]) # flat initial guess for continuum
-    poly_params_guess_all = np.tile(poly_params_guess,n_windows)
-    initial_conditions_total = np.concatenate([initial_conditions,poly_params_guess_all])
+    for j in range(n_windows):
+        for k in range(poly_order):
+            initial_conditions[:,n_params+j*n_windows+k] = np.random.uniform(config_data['other_coeff_l'],config_data['other_coeff_u'],size=n_walkers)
+        
+        initial_conditions[:,n_params+j*n_windows+poly_order] = np.random.uniform(config_data['const_term_l'],config_data['const_term_u'],size=n_walkers)
 
-    return initial_conditions_total
+    return initial_conditions
 
 def model_spec_window(theta,config):
     '''
@@ -113,8 +116,8 @@ def model_spec_window(theta,config):
     func_temp = interp1d(m, temp_arr)
     func_rad = interp1d(m, rad_arr)
 
-    config["t_star"] = int(func_temp(theta[0])/100.0) * 100.0
-    config["r_star"] = func_rad(theta[0]) * const.R_sun.value
+    config["t_star"] = int(func_temp(theta[0]/10.0)/100.0) * 100.0
+    config["r_star"] = func_rad(theta[0]/10.0) * const.R_sun.value
 
     #run model
     # t0 = time.time()
@@ -171,8 +174,8 @@ def log_prior(theta, config, config_mcmc):
     other_u = config_mcmc['other_coeff_u']
 
     coeffs = theta_continua.reshape(n_windows, poly_order + 1)
-    constant_terms = coeffs[:, 0]
-    other_terms = coeffs[:, 1:]
+    constant_terms = coeffs[:, -1]
+    other_terms = coeffs[:,:-1]
 
     if not np.all((constant_terms > const_l) & (constant_terms < const_u)):
         return -np.inf
@@ -195,7 +198,7 @@ def log_likelihood_window(theta, config):
     theta_model = theta[:n_model_params]
 
     # Model spectrum (full)
-    wave_model, model_flux = model_spec_window(theta_model)
+    wave_model, model_flux = model_spec_window(theta_model, config)
 
     log_like = 0.0
 
@@ -245,8 +248,9 @@ def main(p0):
 
     print("Model running...")
     start = time.time()
-    
+
     backend = emcee.backends.HDFBackend(save_filename)
+    backend.reset(n_walkers,n_dim)
     with Pool(processes=8) as pool:
         sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_probability_window, args=(config_dict,config_data_mcmc), backend=backend, pool=pool, blobs_dtype=float)
         sampler.run_mcmc(p0, n_iter, progress=True)
@@ -283,8 +287,8 @@ if __name__=="__main__":
     save_filename = 'mcmc_total_spec.h5'
 
     n_params = 5 # number of parameters that are varying
-    n_walkers = 15
-    n_iter = 20
+    n_walkers = 32
+    n_iter = 100
 
     # generate initial conditions
     config_data_mcmc = config_reader('mcmc_config.cfg')
