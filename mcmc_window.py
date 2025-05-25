@@ -10,7 +10,7 @@ import emcee
 from configparser import ConfigParser
 import matplotlib.pyplot as plt
 import time
-
+from multiprocessing import cpu_count
 
 from multiprocessing import Pool
 import os
@@ -60,7 +60,7 @@ def config_reader(filepath):
 
     return config_data
 
-def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers):
+def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_params):
     '''
     Generates initial conditions by drawing samples from a uniform distribution.
     A flat continuum is chosen'''
@@ -185,7 +185,7 @@ def log_prior(theta, config, config_mcmc):
     return 0.0
 
 
-def log_likelihood_window(theta, config):
+def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
     """
     Compute log-likelihood using windowed residuals and independent continuum correction per window.
     Assumes data arrays x_obs (wavelengths), y_obs (normalized flux), yerr (errors), 
@@ -227,14 +227,14 @@ def log_likelihood_window(theta, config):
 
     return log_like
 
-def log_probability_window(theta,config,config_mcmc): # gives the posterior probability
+def log_probability_window(theta,config,config_mcmc, xobs, yobs, yerr): # gives the posterior probability
 
     lp = log_prior(theta,config=config,config_mcmc=config_mcmc)
     
     if not np.isfinite(lp): # if not finite, then probability is 0
         return -np.inf
     
-    return lp + log_likelihood_window(theta,config)
+    return lp + log_likelihood_window(theta,config, xobs, yobs, yerr)
 
 def rad_vel_correction(wave_ax, vel):
     """
@@ -242,7 +242,7 @@ def rad_vel_correction(wave_ax, vel):
     del_wav = (vel/const.c) * wave_ax
     return wave_ax - del_wav
 
-def main(p0):
+def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, config_dict, config_data_mcmc, x_obs, y_obs, yerr):
     '''
     Sets the MCMC running, parallelized by multiprocessing'''
 
@@ -251,8 +251,8 @@ def main(p0):
 
     backend = emcee.backends.HDFBackend(save_filename)
     backend.reset(n_walkers,n_dim)
-    with Pool(processes=8) as pool:
-        sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_probability_window, args=(config_dict,config_data_mcmc), backend=backend, pool=pool, blobs_dtype=float)
+    with Pool(processes=cpu_cores_used) as pool:
+        sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_probability_window, args=(config_dict,config_data_mcmc, x_obs, y_obs, yerr), backend=backend, pool=pool, blobs_dtype=float)
         sampler.run_mcmc(p0, n_iter, progress=True)
     
     end = time.time()
@@ -265,42 +265,123 @@ def main(p0):
 
     return params
 
-if __name__=="__main__":
 
+def resume_sampling(backend_filename, niter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used):
+    start = time.time()
+    # Load the existing backend
+    backend = emcee.backends.HDFBackend(backend_filename)
+
+    # Get number of walkers and ndim from existing chain
+    print(backend.shape)
+    nwalkers, ndim = backend.shape
+    # Get last position
+    last_pos = backend.get_chain()[-1]
+
+    print(f"Starting {nwalkers} walkers and {ndim} dimensions")
+    print(f"Will do {niter_more} iterations")
+
+    # Resume sampling
+    with Pool(processes=cpu_cores_used) as pool:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability_window,
+                                        args=(config_dict, config_data_mcmc, x_obs, y_obs, yerr), backend=backend,
+                                        pool=pool, blobs_dtype=float)
+        sampler.run_mcmc(last_pos, niter_more, progress=True)
+    end = time.time()
+    multi_time = end - start
+    print("Finished resuming.")
+    print(f"Multiprocessing took {multi_time:.2f} seconds")
+
+    # get the chain
+    print("getting chain ... ")
+    params = sampler.get_chain()
+
+    return params
+
+# ##############################################
+# # This code is to run MCMC for the first time
+#
+# if __name__=="__main__":
+#     cpu_cores_used = cpu_count()
+#     # read data for Marvin
+#     # path_to_valid = "../../FU_ori_HIRES/"
+#     # data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
+#
+#     #read the data, V960 Mon
+#     # path_to_valid = "../../../validation_files/"
+#     # path_to_valid = "/home/nius2022/observational_data/v960mon/"
+#     path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
+#     data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+#     data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+#
+#     # radial velocity correction, taken from header
+#     data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
+#
+#     x_obs = data[0].value
+#     y_obs = data[1]
+#     yerr = data[2]
+#
+#     # filename where the chain will be stored
+#     save_filename = 'mcmc_total_spec.h5'
+#
+#     n_params = 5 # number of parameters that are varying
+#     n_walkers = 70
+#     n_iter = 500
+#
+#     # generate initial conditions
+#     config_data_mcmc = config_reader('mcmc_config.cfg')
+#     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
+#     n_windows = len(config_dict['windows'])
+#     poly_order = config_dict['poly_order']
+#     p0 = generate_initial_conditions(config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers)
+#     n_dim = n_params + n_windows * (poly_order + 1)
+#
+#     # MAIN
+#     params = main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, config_dict, config_data_mcmc, x_obs, y_obs, yerr)
+#
+#     np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
+#
+#     print("completed")
+#
+# ##############################################
+
+
+##############################################
+#  This block is to restart sampling from a pre calculated chain
+
+if __name__ == "__main__":
+    cores = cpu_count()
     # read data for Marvin
     # path_to_valid = "../../FU_ori_HIRES/"
     # data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
 
-    #read the data, V960 Mon
-    path_to_valid = "../../../validation_files/"
-    data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
-    data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+    # read the data, V960 Mon
+    # path_to_valid = "../../../validation_files/"
+    # path_to_valid = "/home/nius2022/observational_data/v960mon/"
+    path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
+    data = ascii.read(path_to_valid + 'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl')
+    data = [data['wave'], data['Flux'] / np.median(data['Flux']), data['Error'] / np.median(data['Flux'])]
 
     # radial velocity correction, taken from header
-    data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
+    data[0] = rad_vel_correction(data[0] * u.AA, 40.3 * u.km / u.s)
 
     x_obs = data[0].value
     y_obs = data[1]
     yerr = data[2]
-    
+
     # filename where the chain will be stored
     save_filename = 'mcmc_total_spec.h5'
 
-    n_params = 5 # number of parameters that are varying
-    n_walkers = 32
-    n_iter = 100
+    n_iter_more = 20 # Define the extra number of iterations to be done
 
     # generate initial conditions
     config_data_mcmc = config_reader('mcmc_config.cfg')
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
-    n_windows = len(config_dict['windows'])
-    poly_order = config_dict['poly_order']
-    p0 = generate_initial_conditions(config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers)
-    n_dim = n_params + n_windows * (poly_order + 1)
+
+    # print(log_likelihood_window(p0, config_dict))
+    params = resume_sampling(save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used=cores)
 
     # MAIN
-    params = main(p0)
-    
-    np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
+    # params = main(p0, n_dim, n_walkers,config_dict,config_data_mcmc, x_obs, y_obs, yerr)
+    # np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
     print("completed")
