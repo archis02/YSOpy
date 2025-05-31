@@ -77,9 +77,8 @@ def j_h_fb_calc_vec(config_file, v):
     m = (1 / t_fb_v) ** 0.5 + 1 # m parameter for the lower limit of the infinite sum, ref. Manara eq. 2.14
     m = m.astype('int32')
 
-    g_fb_vt = f_sum_vectorized(t_fb_v, m, t_slab, large_num=100)
+    g_fb_vt = f_sum_vectorized(t_fb_v, m, t_slab, large_num=20)
     g_fb_vt = g_fb_vt * (2 * h * v_o * Z ** 2 / (k * t_slab))
-
     j_h_fb_v = 5.44 * 10 ** (-39) * Z ** 2 / (t_slab.value) ** (1 / 2) * n_e.value * n_i.value * np.exp(
         (-h * v) / (k * t_slab)) * g_fb_vt * u.erg * u.cm ** (-3) * u.s ** (-1) * u.Hertz ** (-1) * u.sr ** (-1)
 
@@ -178,17 +177,14 @@ def get_l_slab(config_file: dict):
     tau = config_file["tau"]
     v = const.c / config_file["l_l_slab"]
     v = np.array([v.si.value]) * u.Hz # for consistency
-
     # total emissivity
     j_h_fb_v = j_h_fb_calc_vec(config_file, v)
     j_h_ff_v = j_h_ff_calc(config_file, v)
     j_h_tot = j_h_fb_v + j_h_ff_v
-    
     # define L_slab
     bb_v = BlackBody(temperature=config_file["t_slab"])
     l_slab = tau * bb_v(v) / j_h_tot
     l_slab = l_slab.si
-
     return l_slab
 
 
@@ -281,14 +277,11 @@ def get_h_intensity(config_file):
         print("starting free-free calculation")
     j_h_ff_arr = j_h_ff_calc(config_file, v)
     j_h_total= j_h_fb_arr + j_h_ff_arr
-
     l_slab = get_l_slab(config_file)
     bb_freq = BlackBody(temperature=config_file['t_slab'])
     tau_v_arr_h = j_h_total * l_slab / bb_freq(v)
     beta_h_v_arr = (1 - np.exp(-tau_v_arr_h)) / tau_v_arr_h
-    
     intensity_h_l = (j_h_total * l_slab * beta_h_v_arr * (c / (wavelength ** 2))).to(u.erg / (u.cm ** 2 * u.s * u.AA * u.sr))
-
     return intensity_h_l
 
 

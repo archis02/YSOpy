@@ -17,54 +17,29 @@ n_params = 5
 
 params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab']
 
-def config_reader(filepath):
-    """
-    Read the config file containing the bounds for each parameter, i.e. mcmc_config.cfg
-    """
-    parser = ConfigParser()
-    parser.read(filepath)
-    config_data = dict(parser['Parameters'])
 
-    config_data['m_u'] = float(config_data['m_u'])
-    config_data['m_l'] = float(config_data['m_l'])
-
-    config_data['log_m_dot_u'] = float(config_data['log_m_dot_u'])
-    config_data['log_m_dot_l'] = float(config_data['log_m_dot_l'])
-
-    config_data['b_u'] = float(parser['Parameters']['b_u'])
-    config_data['b_l'] = float(parser['Parameters']['b_l'])
-
-    config_data['inclination_u'] = float(parser['Parameters']['inclination_u'])
-    config_data['inclination_l'] = float(parser['Parameters']['inclination_l'])
-
-    # config_data['t_0_u'] = float(parser['Parameters']['t_0_u'])
-    # config_data['t_0_l'] = float(parser['Parameters']['t_0_l'])
-
-    config_data['t_slab_u'] = float(parser['Parameters']['t_slab_u'])
-    config_data['t_slab_l'] = float(parser['Parameters']['t_slab_l'])
-
-    # config_data['log_n_e_u'] = float(parser['Parameters']['log_n_e_u'])
-    # config_data['log_n_e_l'] = float(parser['Parameters']['log_n_e_l'])
-
-    # config_data['tau_u'] = float(parser['Parameters']['tau_u'])
-    # config_data['tau_l'] = float(parser['Parameters']['tau_l'])
-
-    config_data['const_term_l'] = float(parser['Parameters']['const_term_l'])
-    config_data['const_term_u'] = float(parser['Parameters']['const_term_u'])
-
-    config_data['other_coeff_l'] = float(parser['Parameters']['other_coeff_l'])
-    config_data['other_coeff_u'] = float(parser['Parameters']['other_coeff_u'])
-
-    return config_data
 
 # generate initial conditions
-config_data_mcmc = config_reader('mcmc_config.cfg')
 config_dict = utils.config_read_bare("ysopy/config_file.cfg")
 
 filename = 'mcmc_total_spec.h5'
 
 reader = emcee.backends.HDFBackend(filename)
 flat_samples = reader.get_chain()
+# tau = reader.get_autocorr_time()
+# print(tau)
+# print(flat_samples.shape)
+# lb = np.array([4.0, 4.224, 1, 17.2, 7, -1e-3, 0.7])
+# ub = np.array([4.5, 4.25, 3, 20, 10.5, 1e-3, 1.5])
+# cond1 = np.all(flat_samples<ub, axis=-1)
+# cond2 = np.all(flat_samples>lb, axis=-1)
+# cond = np.logical_and(cond1, cond2)
+# print(cond.shape)
+# # print(cond.shape)
+# flat_for_trace = flat_samples
+# flat_samples = flat_samples[cond]
+# print(flat_samples.shape)
+
 
 n_windows = len(config_dict['windows'])
 poly_order = config_dict['poly_order']
@@ -80,7 +55,7 @@ def plot_trace():
         ax.yaxis.set_label_coords(-0.1, 0.5)
 
     axes[-1].set_xlabel("step number");
-    # plt.savefig(f"{filename}_trace.pdf")
+    plt.savefig(f"../Buffer/plot_directory/mcmc_total_model_trace.pdf")
     plt.show()
 
 
@@ -102,7 +77,7 @@ def plot_corner():
         # range=range_corner
     )
     # plt.suptitle(f"{filename}\n\n\n")
-    # plt.savefig(f"{filename}_corner.pdf")
+    # plt.savefig(f"../Buffer/plot_directory/mcmc_total_model_corner.pdf")
     plt.show()
 
 

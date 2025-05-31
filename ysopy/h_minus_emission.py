@@ -40,11 +40,10 @@ def generate_kappa_fb_arr(config_file):
     alpha_const = 1.439e8 * u.AA * u.K
 
     wavelength_fb = np.extract(wavelength < lamb_0.to(u.AA), wavelength)
-
     fb_l = np.zeros(wavelength_fb.shape[0]) * u.cm **2
     l_micro = wavelength_fb.to(u.micrometer)
     for n in range(1, 7):
-        term = phto_detach_coeff.loc[n - 1][1] * np.power((1 / l_micro.value - 1 / lamb_0.value),((n - 1) / 2)) * (
+        term = phto_detach_coeff.iloc[n - 1][1] * np.power((1 / l_micro.value - 1 / lamb_0.value),((n - 1) / 2)) * (
             u.cm) ** 2  # nth row and 1st column is the coefficient # eqn 2.28 Manara
         fb_l += term
     sigma_lamb = 1e-18 * l_micro.value ** 3 * np.power((1 / l_micro.value - 1 / lamb_0.value), 1.5) * fb_l  # unit same as 2.28
@@ -79,34 +78,43 @@ def generate_kappa_ff_arr(config_file):
                     np.log10(config_file['l_max']), config_file['n_h_minus']) * u.AA
     t_slab = config_file['t_slab']
 
-    kappa_ff_arr = np.zeros(config_file['n_h_minus'])
+    # kappa_ff_arr = np.zeros(config_file['n_h_minus'])
+
+    wavelengths_micron = l.to(u.micrometer).value
+    l_micro = wavelengths_micron[np.where(wavelengths_micron < 0.182)]
+    ff_l1 = np.zeros(l_micro.shape[0])
+    # print("l_micre 1 -------", l_micro)
 
     #wavelengths less than 0.3645 microns
-    wavelengths_micron = l.to(u.micrometer).value
-    l_micro = wavelengths_micron[np.where(wavelengths_micron<0.3645)]
-    ff_l = np.zeros(l_micro.shape[0])
+    l_micro = wavelengths_micron[np.where(np.logical_and(wavelengths_micron<0.3645, wavelengths_micron>0.182))]
+    ff_l2 = np.zeros(l_micro.shape[0])
+    # print("l_micre 2 -------", l_micro)
     for n in range(1, 7):
         term = (5040 / t_slab.value) ** ((n + 1) / 2) * (
-                l_micro ** 2 * free_free_coeff_1.loc[n - 1][1] + free_free_coeff_1.loc[n - 1][2] +
-                free_free_coeff_1.loc[n - 1][3] / l_micro + free_free_coeff_1.loc[n - 1][4] / l_micro ** 2 +
-                free_free_coeff_1.loc[n - 1][5] / l_micro ** 3 + free_free_coeff_1.loc[n - 1][6] / l_micro ** 4)
-        ff_l += term
-    kappa_ff_arr[:l_micro.shape[0]] = ff_l * 1e-29
+                l_micro ** 2 * free_free_coeff_1.iloc[n - 1][1] + free_free_coeff_1.iloc[n - 1][2] +
+                free_free_coeff_1.iloc[n - 1][3] / l_micro + free_free_coeff_1.iloc[n - 1][4] / l_micro ** 2 +
+                free_free_coeff_1.iloc[n - 1][5] / l_micro ** 3 + free_free_coeff_1.iloc[n - 1][6] / l_micro ** 4)
+        ff_l2 += term
     lower_end = l_micro.shape[0]
-
+    # print("ff_l2", ff_l2)
     #wavelengths larger than 0.3645 microns
     l_micro = wavelengths_micron[np.where(wavelengths_micron>=0.3645)]
-    ff_l = np.zeros(l_micro.shape[0])
+    # print("l_micre 3 -------", l_micro)
+    ff_l3 = np.zeros(l_micro.shape[0])
     for n in range(1, 7):
         term = (5040 / t_slab.value) ** ((n + 1) / 2) * (
-                l_micro ** 2 * free_free_coeff_2.loc[n - 1][1] + free_free_coeff_2.loc[n - 1][2] +
-                free_free_coeff_2.loc[n - 1][3] / l_micro + free_free_coeff_2.loc[n - 1][
+                l_micro ** 2 * free_free_coeff_2.iloc[n - 1][1] + free_free_coeff_2.iloc[n - 1][2] +
+                free_free_coeff_2.iloc[n - 1][3] / l_micro + free_free_coeff_2.iloc[n - 1][
                     4] / l_micro ** 2 +
-                free_free_coeff_2.loc[n - 1][5] / l_micro ** 3 + free_free_coeff_2.loc[n - 1][
+                free_free_coeff_2.iloc[n - 1][5] / l_micro ** 3 + free_free_coeff_2.iloc[n - 1][
                     6] / l_micro ** 4)
-        ff_l += term
-    kappa_ff_arr[lower_end:] = ff_l * 1e-29
+        ff_l3 += term
+    ff_tot = np.concatenate((ff_l1, ff_l2, ff_l3))
+    # print("ff_l1", ff_l1)
+    # print("ff_l2", ff_l2)
+    # print("ff_l3", ff_l3)
 
+    kappa_ff_arr = ff_tot * 1e-29
     kappa_ff_arr = np.array(kappa_ff_arr) * u.cm ** 4 / u.dyne
     # print("kappa ff len: ", len(kappa_ff_arr))
     return kappa_ff_arr
@@ -140,29 +148,31 @@ def get_h_minus_intensity(config_file):
     k_l_arr = np.zeros(config_file['n_h_minus']) * u.cm**4 / u.dyn # kappa_fb_arr[0].unit
     k_l_arr[:kappa_fb_arr.shape[0]] = kappa_fb_arr
     k_l_arr += kappa_ff_arr
-
+    # print("k_tot_arr", k_l_arr)
     # finding the number density at quantum level n = 2
     # n = 2 we get from the fact that all transitions come and eqm is there at the Balmer level
     # else Lyman alpha emission will be there which is not so favoured? I don't know?
-    n = 1
+    # n = 1
     # so finally we see that because the optical depth for H- emission case is less, around e-10
     # What happens is the emission that happens when a H atom releases a lymann alpha photon is
     # checked this? How do we choose the value of the nth level
-    kappa_h_l_tot = k_l_arr * h ** 3 / (2 * np.pi * k * m_e) ** (3 / 2) * n ** 2 * t_slab ** (-3 / 2) * \
-                    np.exp(h * v_o / (n ** 2 * k * t_slab)) * ne ** 2 * ne * k * t_slab
+    kappa_h_l_tot = np.zeros(len(k_l_arr)) * u.cm ** (-1)
+    for n in range(1, 21):
+        sum_over_levels = k_l_arr * ((h ** 3) / (2 * np.pi * k * m_e) ** (3 / 2)) * n ** 2 * t_slab ** (-3 / 2) * \
+                        np.exp(h * v_o / (n ** 2 * k * t_slab)) * ne ** 2 * ne * k * t_slab
+        kappa_h_l_tot += sum_over_levels
+
     # the above things are in wavelength thing
     # now have to convert everything into frequency regime
     kappa_h_l_tot = kappa_h_l_tot.to(u.cm ** (-1))
     bb_lam = BlackBody(temperature=t_slab, scale=1.0 * u.erg / (u.cm ** 2 * u.AA * u.s * u.sr))
     j_h_minus_l = kappa_h_l_tot * bb_lam(wavelength)
     j_h_minus_l = j_h_minus_l.to(u.erg / (u.AA * u.s * u.sr * u.cm ** 3))
-
     #to get l_slab, we need the calculation from the H emission
     l_slab = h_emission.get_l_slab(config_file)
     tau_v_arr_h_minus = kappa_h_l_tot * l_slab
     beta_h_minus_v_arr = (1 - np.exp(-tau_v_arr_h_minus)) / tau_v_arr_h_minus
     intensity_h_minus_l = j_h_minus_l * l_slab * beta_h_minus_v_arr
-
     if save_grid:
         h_min_grid_path = config_file["h_min_grid_path"]
         name = f"temp_{int(config_file['t_slab'].value)}_tau_{np.round(config_file['tau'],1)}_" \
