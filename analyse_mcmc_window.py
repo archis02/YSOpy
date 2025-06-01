@@ -21,11 +21,13 @@ params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab']
 
 # generate initial conditions
 config_dict = utils.config_read_bare("ysopy/config_file.cfg")
-
-filename = 'mcmc_total_spec.h5'
-
+saveloc = "/Users/tusharkantidas/github/archis/Buffer/store_mcmc_files/"
+# filename = 'mcmc_total_spec.h5'
+snr = 100
+filename = f"mcmc_total_spec_{snr}.h5"
+filename = saveloc + filename
 reader = emcee.backends.HDFBackend(filename)
-flat_samples = reader.get_chain()
+flat_samples = reader.get_chain(discard=0)
 # tau = reader.get_autocorr_time()
 # print(tau)
 # print(flat_samples.shape)

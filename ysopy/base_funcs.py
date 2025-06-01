@@ -763,9 +763,19 @@ def magnetospheric_component_calculate(config, r_in):
     ###########################    HYDROGEN SLAB    #############################
     if config['mag_comp']=="hslab":
 
-        h_flux = h_emission.get_h_intensity(config)
-        h_minus_flux = h_minus_emission.get_h_minus_intensity(config)
-        h_slab_flux = (h_flux + h_minus_flux) * u.sr
+        h_flux, tau_h = h_emission.get_h_intensity(config)
+        h_minus_flux, tau_hm = h_minus_emission.get_h_minus_intensity(config)
+        wavelength = np.logspace(np.log10(config['l_min']), np.log10(config['l_max']),
+                                 config['n_h_minus']) * u.AA
+        h_flux, tau_h = h_emission.get_h_intensity(config)
+        # h_flux = 0 * h_flux
+        h_minus_flux, tau_h_ = h_minus_emission.get_h_minus_intensity(config)
+        tau_total = tau_h + tau_h_  # tau is independent of wavelength/frequency units
+        beta_total_arr = (1 - np.exp(-tau_total)) / tau_total
+        bb_lam = BlackBody(temperature=config["t_slab"], scale=1.0 * u.erg / (u.cm ** 2 * u.AA * u.s * u.sr))
+        h_slab_flux = (bb_lam(wavelength) * tau_total * beta_total_arr).to(
+            u.erg / (u.cm ** 2 * u.s * u.AA * u.sr))
+        h_slab_flux = h_slab_flux * u.sr
 
         # two wavelength regimes are used
         wav_slab = np.logspace(np.log10(config['l_min']), np.log10(config['l_max']), config['n_h']) * u.AA

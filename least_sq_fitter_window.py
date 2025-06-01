@@ -32,8 +32,9 @@ def rad_vel_correction(wave_ax, vel):
 
 # read the data, V960 Mon, initially, using file 04 ###############
 # when reading a custom-stitched file, ensure that the wavelength axis is in ascending order, with no overlaps
-path_to_valid = "../../../validation_files/"
-data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+# path_to_valid = "../../../validation_files/"
+path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
+data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl')
 data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]    # median normalized
 wavelengths_air = wave.vactoair(data[0]*u.AA)   # vac to air correction for given data
 data[0] = rad_vel_correction(wavelengths_air, 40.3 * u.km / u.s)    # radial velocity correction to wavelength, from header file

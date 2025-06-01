@@ -187,7 +187,7 @@ def get_h_minus_intensity(config_file):
             np.save(f"{h_min_grid_path}/{name}/j_h_tot.npy", j_h_minus_l.value)
             np.save(f"{h_min_grid_path}/{name}/kappa_h_l_tot.npy", kappa_h_l_tot.value)
 
-    return intensity_h_minus_l
+    return intensity_h_minus_l, tau_v_arr_h_minus
     
 
 # to generate a grid of values

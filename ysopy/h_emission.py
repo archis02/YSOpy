@@ -282,7 +282,7 @@ def get_h_intensity(config_file):
     tau_v_arr_h = j_h_total * l_slab / bb_freq(v)
     beta_h_v_arr = (1 - np.exp(-tau_v_arr_h)) / tau_v_arr_h
     intensity_h_l = (j_h_total * l_slab * beta_h_v_arr * (c / (wavelength ** 2))).to(u.erg / (u.cm ** 2 * u.s * u.AA * u.sr))
-    return intensity_h_l
+    return intensity_h_l, tau_v_arr_h
 
 
 # to generate a grid of values

@@ -216,9 +216,10 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
 
         # Interpolate model to the observed window wavelengths
         model_flux_window = np.interp(window_obs, wave_model, model_flux)
-
+        # scaling the wavelength to remove degeneracy of slope and intercept
+        scaled_wave = np.linspace(-1, 1, len(wave_model))
         # Apply the polynomial continuum correction
-        poly_func = np.polyval(poly_coeffs, window_obs)
+        poly_func = np.polyval(poly_coeffs, scaled_wave)
         model_corrected = model_flux_window * poly_func
 
         # Compute log-likelihood contribution from this window
