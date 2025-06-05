@@ -144,6 +144,9 @@ def model_spec_window(theta,config):
 
     return wave_ax, total_flux
 
+def convert_to_photon_counts(wave_ax, total_flux):
+    flux_photo = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
+    return flux_photo
 
 def log_prior(theta, config, config_mcmc):
     """
@@ -216,9 +219,11 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
 
         # Interpolate model to the observed window wavelengths
         model_flux_window = np.interp(window_obs, wave_model, model_flux)
-
+        model_flux_window = model_flux_window/np.median(model_flux_window)
+        # scaling the wavelength to remove degeneracy of slope and intercept
+        scaled_wave = np.linspace(-1, 1, len(window_obs))
         # Apply the polynomial continuum correction
-        poly_func = np.polyval(poly_coeffs, window_obs)
+        poly_func = np.polyval(poly_coeffs, scaled_wave)
         model_corrected = model_flux_window * poly_func
 
         # Compute log-likelihood contribution from this window
@@ -242,7 +247,7 @@ def rad_vel_correction(wave_ax, vel):
     del_wav = (vel/const.c) * wave_ax
     return wave_ax - del_wav
 
-def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, config_dict, config_data_mcmc, x_obs, y_obs, yerr):
+def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dict, config_data_mcmc, x_obs, y_obs, yerr):
     '''
     Sets the MCMC running, parallelized by multiprocessing'''
 
@@ -297,57 +302,57 @@ def resume_sampling(backend_filename, niter_more, config_dict, config_data_mcmc,
 
     return params
 
-# ##############################################
-# # This code is to run MCMC for the first time
-#
-# if __name__=="__main__":
-#     cpu_cores_used = cpu_count()
-#     # read data for Marvin
-#     # path_to_valid = "../../FU_ori_HIRES/"
-#     # data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
-#
-#     #read the data, V960 Mon
-#     # path_to_valid = "../../../validation_files/"
-#     # path_to_valid = "/home/nius2022/observational_data/v960mon/"
-#     path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
-#     data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
-#     data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
-#
-#     # radial velocity correction, taken from header
-#     data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
-#
-#     x_obs = data[0].value
-#     y_obs = data[1]
-#     yerr = data[2]
-#
-#     # filename where the chain will be stored
-#     save_filename = 'mcmc_total_spec.h5'
-#
-#     n_params = 5 # number of parameters that are varying
-#     n_walkers = 70
-#     n_iter = 500
-#
-#     # generate initial conditions
-#     config_data_mcmc = config_reader('mcmc_config.cfg')
-#     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
-#     n_windows = len(config_dict['windows'])
-#     poly_order = config_dict['poly_order']
-#     p0 = generate_initial_conditions(config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers)
-#     n_dim = n_params + n_windows * (poly_order + 1)
-#
-#     # MAIN
-#     params = main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, config_dict, config_data_mcmc, x_obs, y_obs, yerr)
-#
-#     np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
-#
-#     print("completed")
-#
-# ##############################################
+##############################################
+# This code is to run MCMC for the first time
+"""
+if __name__=="__main__":
+    cpu_cores_used = cpu_count()
+    # read data for Marvin
+    # path_to_valid = "../../FU_ori_HIRES/"
+    # data = ascii.read(path_to_valid+'KOA_42767/HIRES/extracted/tbl/ccd0/flux/HI.20030211.26428_0_02_flux.tbl.gz')
+
+    #read the data, V960 Mon
+    # path_to_valid = "../../../validation_files/"
+    # path_to_valid = "/home/nius2022/observational_data/v960mon/"
+    path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
+    data = ascii.read(path_to_valid+'KOA_93088/HIRES/extracted/tbl/ccd1/flux/HI.20141209.56999_1_04_flux.tbl.gz')
+    data = [data['wave'],data['Flux']/np.median(data['Flux']),data['Error']/np.median(data['Flux'])]
+
+    # radial velocity correction, taken from header
+    data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
+
+    x_obs = data[0].value
+    y_obs = data[1]
+    yerr = data[2]
+
+    # filename where the chain will be stored
+    save_filename = 'mcmc_total_spec.h5'
+
+    n_params = 5 # number of parameters that are varying
+    n_walkers = 70
+    n_iter = 500
+
+    # generate initial conditions
+    config_data_mcmc = config_reader('mcmc_config.cfg')
+    config_dict = utils.config_read_bare("ysopy/config_file.cfg")
+    n_windows = len(config_dict['windows'])
+    poly_order = config_dict['poly_order']
+    p0 = generate_initial_conditions(config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers)
+    n_dim = n_params + n_windows * (poly_order + 1)
+
+    # MAIN
+    params = main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, config_dict, config_data_mcmc, x_obs, y_obs, yerr)
+
+    np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
+
+    print("completed")
+"""
+##############################################
 
 
 ##############################################
 #  This block is to restart sampling from a pre calculated chain
-
+"""
 if __name__ == "__main__":
     cores = cpu_count()
     # read data for Marvin
@@ -385,3 +390,4 @@ if __name__ == "__main__":
     # np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
     print("completed")
+"""

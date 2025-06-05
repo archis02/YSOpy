@@ -980,7 +980,8 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
     t_dust_init = t_eff_dust(r_dust, config)
 
     if t_eff_dust(r_sub, config) > 1400:
-        t_dust[np.where(t_dust>1400.0)] = 1400
+        t_dust_init[np.where(t_dust_init>1400.0)] = 1400
+        t_dust = t_dust_init
         # t_dust = ma.masked_greater(t_dust_init, 1400)
         # t_dust = t_dust.filled(1400)
         # t_dust = t_dust * u.K
@@ -1123,7 +1124,6 @@ def total_spec(dict_config):
     print(f"Photospheric component done, time taken {t5-t4}")
     total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
-    total_flux /= np.median(total_flux)
 
     return wavelength, total_flux
 

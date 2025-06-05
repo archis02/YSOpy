@@ -67,9 +67,13 @@ def model_spec_window(theta, config):
     #       f"\nphotosphere: {t4-t3:.2f}")
 
     return wave_ax, total_flux
-save_loc = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
+# GD
+#save_loc = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
+#Marvin
+save_loc = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
 config = utils.config_read_bare("ysopy/config_file.cfg")
 theta = np.array([6, 4.5, 2.0, 20, 9])
+# theta = np.array([6, 4.5, 2.0, 20, 9, 0, 1])
 # generate spectra with ysopy =================
 """
 wave, flux = model_spec_window(theta, config)
@@ -98,12 +102,20 @@ obs_wave = wave_trimmed
 obs_flux = flux_trimmed
 
 snr = 100
-noise = obs_flux * np.random.randn(len(obs_flux)) / snr
+noise_in_signal = obs_flux * np.random.randn(len(obs_flux)) / snr
+
 # noise = obs_flux * np.random.normal(0, 1/snr, len(obs_flux))
-noisy_flux = obs_flux + noise
+noisy_flux = obs_flux + noise_in_signal
+noise_assumed = obs_flux * np.ones(len(obs_flux)) / snr
+
+#### If using poisson noise thing
+# def generate_poisson_noise_for_flux(snr, flux_arr):
+#     flux_arr *= snr**2 / np.mean(flux_arr)  # normalise flux_arr to 1 and then scale it up by snr^2
+#     poisson_noisy_flux = np.random.poisson(lam=flux_arr).astype(np.float64)  # lambda = sigma2 for poisson -->
+#     return poisson_noisy_flux, flux_arr
 np.save(f"{save_loc}/trimmed_wavem_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", wave_trimmed)
 np.save(f"{save_loc}/snr_{snr}_obs_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", noisy_flux)
-np.save(f"{save_loc}/snr_{snr}_noise_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", noise)
+np.save(f"{save_loc}/snr_{snr}_noise_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", noise_assumed)
 
 # plt.plot(obs_wave, obs_flux)
 # plt.plot(obs_wave, noisy_flux)
