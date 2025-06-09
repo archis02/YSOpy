@@ -86,11 +86,11 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_pa
 
     return initial_conditions
 
-def model_spec_window(theta,config):
+def model_spec_window(theta, config):
     '''
     Evaluates model in the wavelength range [l_min,l_max].
     Ensure that all windows over which the chi-square is calculated lie within this range.
-    
+
     Parameters
     ----------
     theta: list
@@ -100,29 +100,32 @@ def model_spec_window(theta,config):
     # config = utils.config_read_bare('ysopy/config_file.cfg')
 
     # overwrite the given config dictionary, after SCALING
-    config['m'] = theta[0]/10.0 * const.M_sun.value
-    config['m_dot'] = 10**(-1.0*theta[1]) * const.M_sun.value / 31557600.0 ## Ensure the 10** here
+    config['m'] = theta[0] / 10.0 * const.M_sun.value
+    config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
-    config['inclination'] = theta[3] * np.pi / 180.0 # radians
-    config['t_slab'] = theta[4] *1000.0 * u.K
+    config['inclination'] = theta[3] * np.pi / 180.0  # radians
+    config['t_slab'] = theta[4] * 1000.0 * u.K
 
     config["n_e"] = 10**theta[5] * u.cm**(-3)
     config["tau"] = theta[6]
 
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
-    m = np.array([0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
+    m = np.array(
+        [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
          0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4])
-    temp_arr = np.array([2345, 2504, 2598, 2710, 2779, 2824, 2864, 2897, 2896, 2897, 2898, 2908, 2936, 2955, 3012, 3078, 3142, 3226,
+    temp_arr = np.array(
+        [2345, 2504, 2598, 2710, 2779, 2824, 2864, 2897, 2896, 2897, 2898, 2908, 2936, 2955, 3012, 3078, 3142, 3226,
          3428, 3634, 3802, 3955, 4078, 4192, 4290, 4377, 4456, 4529, 4596, 4658])
-    rad_arr = np.array([0.271, 0.326, 0.372, 0.467, 0.536, 0.628, 0.702, 0.781, 0.803, 0.829, 0.877, 0.959, 1.002, 1.079, 1.214, 1.327,
+    rad_arr = np.array(
+        [0.271, 0.326, 0.372, 0.467, 0.536, 0.628, 0.702, 0.781, 0.803, 0.829, 0.877, 0.959, 1.002, 1.079, 1.214, 1.327,
          1.465, 1.503, 1.636, 1.753, 1.87, 1.971, 2.096, 2.2, 2.31, 2.416, 2.52, 2.612, 2.71, 2.797])
     func_temp = interp1d(m, temp_arr)
     func_rad = interp1d(m, rad_arr)
 
-    config["t_star"] = int(func_temp(theta[0]/10.0)/100.0) * 100.0
-    config["r_star"] = func_rad(theta[0]/10.0) * const.R_sun.value
+    config["t_star"] = int(func_temp(theta[0] / 10.0) / 100.0) * 100.0
+    config["r_star"] = func_rad(theta[0] / 10.0) * const.R_sun.value
 
-    #run model
+    # run model
     # t0 = time.time()
     bf.calculate_n_data(config)
     dr, t_max, d, r_in, r_sub = bf.generate_temp_arr(config)
@@ -135,17 +138,18 @@ def model_spec_window(theta,config):
     # t3 = time.time()
     obs_star_flux = bf.generate_photosphere_flux(config)
     # t4 = time.time()
-    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
+    total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux,
+                                         obs_dust_flux)
     # t5 = time.time()
     # total_flux /= np.median(total_flux)
-
+    flux_photon = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
     # print(f"model run ... "
     #       f"\nvisc disk : {t1-t0:.2f}"
     #       f"\nshock: {t2-t1:.2f}"
     #       f"\ndusty disk: {t3-t2:.2f}"
     #       f"\nphotosphere: {t4-t3:.2f}")
 
-    return wave_ax, total_flux
+    return wave_ax, total_flux, flux_photon
 
 def convert_to_photon_counts(wave_ax, total_flux):
     flux_photo = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
@@ -204,7 +208,9 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
     theta_model = theta[:n_model_params]
 
     # Model spectrum (full)
-    wave_model, model_flux = model_spec_window(theta_model, config)
+    wave_model, total_flux, flux_photon_count = model_spec_window(theta_model, config)
+    # change the below code from total_flux to photon_counts if obs_spectra is in photon counts
+    model_flux = flux_photon_count
 
     log_like = 0.0
 
