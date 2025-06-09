@@ -43,7 +43,7 @@ def generate_kappa_fb_arr(config_file):
     fb_l = np.zeros(wavelength_fb.shape[0]) * u.cm **2
     l_micro = wavelength_fb.to(u.micrometer)
     for n in range(1, 7):
-        term = phto_detach_coeff.iloc[n - 1][1] * np.power((1 / l_micro.value - 1 / lamb_0.value),((n - 1) / 2)) * (
+        term = phto_detach_coeff.iloc[n - 1].iloc[1] * np.power((1 / l_micro.value - 1 / lamb_0.value),((n - 1) / 2)) * (
             u.cm) ** 2  # nth row and 1st column is the coefficient # eqn 2.28 Manara
         fb_l += term
     sigma_lamb = 1e-18 * l_micro.value ** 3 * np.power((1 / l_micro.value - 1 / lamb_0.value), 1.5) * fb_l  # unit same as 2.28
@@ -91,9 +91,9 @@ def generate_kappa_ff_arr(config_file):
     # print("l_micre 2 -------", l_micro)
     for n in range(1, 7):
         term = (5040 / t_slab.value) ** ((n + 1) / 2) * (
-                l_micro ** 2 * free_free_coeff_1.iloc[n - 1][1] + free_free_coeff_1.iloc[n - 1][2] +
-                free_free_coeff_1.iloc[n - 1][3] / l_micro + free_free_coeff_1.iloc[n - 1][4] / l_micro ** 2 +
-                free_free_coeff_1.iloc[n - 1][5] / l_micro ** 3 + free_free_coeff_1.iloc[n - 1][6] / l_micro ** 4)
+                l_micro ** 2 * free_free_coeff_1.iloc[n - 1].iloc[1] + free_free_coeff_1.iloc[n - 1].iloc[2] +
+                free_free_coeff_1.iloc[n - 1].iloc[3] / l_micro + free_free_coeff_1.iloc[n - 1].iloc[4] / l_micro ** 2 +
+                free_free_coeff_1.iloc[n - 1].iloc[5] / l_micro ** 3 + free_free_coeff_1.iloc[n - 1].iloc[6] / l_micro ** 4)
         ff_l2 += term
     lower_end = l_micro.shape[0]
     # print("ff_l2", ff_l2)
@@ -103,10 +103,10 @@ def generate_kappa_ff_arr(config_file):
     ff_l3 = np.zeros(l_micro.shape[0])
     for n in range(1, 7):
         term = (5040 / t_slab.value) ** ((n + 1) / 2) * (
-                l_micro ** 2 * free_free_coeff_2.iloc[n - 1][1] + free_free_coeff_2.iloc[n - 1][2] +
-                free_free_coeff_2.iloc[n - 1][3] / l_micro + free_free_coeff_2.iloc[n - 1][
+                l_micro ** 2 * free_free_coeff_2.iloc[n - 1].iloc[1] + free_free_coeff_2.iloc[n - 1].iloc[2] +
+                free_free_coeff_2.iloc[n - 1].iloc[3] / l_micro + free_free_coeff_2.iloc[n - 1].iloc[
                     4] / l_micro ** 2 +
-                free_free_coeff_2.iloc[n - 1][5] / l_micro ** 3 + free_free_coeff_2.iloc[n - 1][
+                free_free_coeff_2.iloc[n - 1].iloc[5] / l_micro ** 3 + free_free_coeff_2.iloc[n - 1].iloc[
                     6] / l_micro ** 4)
         ff_l3 += term
     ff_tot = np.concatenate((ff_l1, ff_l2, ff_l3))

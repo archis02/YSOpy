@@ -758,7 +758,7 @@ def magnetospheric_component_calculate(config, r_in):
         if config['verbose']:
             print("High accretion, no magnetospheric contribution")
         return spec
-    else: print("Magnetospheric contribution active")
+    # else: print("Magnetospheric contribution active")
 
     ###########################    HYDROGEN SLAB    #############################
     if config['mag_comp']=="hslab":
