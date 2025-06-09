@@ -10,3 +10,4 @@ __pycache__/
 /ysopy/*.log
 /ysopy/rough-work.ipynb
 /ysopy/rough-work.py
+*.jl

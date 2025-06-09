@@ -26,7 +26,9 @@ import sys
 
 if __name__=="__main__":
     cpu_cores_used = cpu_count()
-    theta = np.array([6, 4.5, 2.0, 20, 9])
+    # theta = np.array([6, 4.5, 2.0, 20, 9])  # test case for high accretion rate
+    theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1.5])  # test case for low accretion rate
+
     snr = 100
     # read data for Marvin
     path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
@@ -49,10 +51,10 @@ if __name__=="__main__":
     yerr = data_error/np.median(data_flux)
 
     # filename where the chain will be stored
-    save_filename = f'mcmc_total_spec_{snr}_gaussian_noise.h5'
+    save_filename = f'mcmc_total_spec_{snr}_low_acc_gaussian_noise.h5'
 
-    n_params = 5  # number of parameters that are varying
-    n_walkers = 40
+    n_params = 7  # number of parameters that are varying
+    n_walkers = 35
     n_iter = 500
 
     # generate initial conditions
@@ -86,8 +88,8 @@ if __name__ == "__main__":
     #
     # read the data, V960 Mon
     # path_to_valid = "../../../validation_files/"
-    # path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
-    path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
+    path_to_valid = "/Users/tusharkantidas/NIUS/ysopy_valid/"
+    # path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
 
     data_wave = np.load(
         f"{path_to_valid}/trimmed_wavem_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy")
@@ -101,16 +103,16 @@ if __name__ == "__main__":
     yerr = data_error / np.median(data_flux)
 
     # filename where the chain will be stored
-    save_filename = f'mcmc_total_spec_{snr}_gaussian_noise.h5'
+    save_filename = f'mcmc_total_spec_{snr}_low_acc_gaussian_noise.h5'
 
     n_iter_more = 20 # Define the extra number of iterations to be done
 
     # generate initial conditions
-    config_data_mcmc = config_reader('mcmc_config.cfg')
+    config_data_mcmc = mc_file.config_reader('mcmc_config.cfg')
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
 
     # print(log_likelihood_window(p0, config_dict))
-    params = resume_sampling(save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used=cores)
+    params = mc_file.resume_sampling(save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used=cores)
 
     # MAIN
     # params = main(p0, n_dim, n_walkers,config_dict,config_data_mcmc, x_obs, y_obs, yerr)

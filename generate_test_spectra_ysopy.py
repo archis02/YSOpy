@@ -26,6 +26,9 @@ def model_spec_window(theta, config):
     config['inclination'] = theta[3] * np.pi / 180.0  # radians
     config['t_slab'] = theta[4] * 1000.0 * u.K
 
+    config["n_e"] = 10**theta[5] * u.cm**(-3)
+    config["tau"] = theta[6]
+
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
@@ -58,7 +61,7 @@ def model_spec_window(theta, config):
     total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux,
                                          obs_dust_flux)
     # t5 = time.time()
-    total_flux /= np.median(total_flux)
+    # total_flux /= np.median(total_flux)
 
     # print(f"model run ... "
     #       f"\nvisc disk : {t1-t0:.2f}"
@@ -72,24 +75,27 @@ def model_spec_window(theta, config):
 #Marvin
 save_loc = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
 config = utils.config_read_bare("ysopy/config_file.cfg")
-theta = np.array([6, 4.5, 2.0, 20, 9])
+# theta = np.array([6, 4.5, 2.0, 20, 9])  # test case for high accretion rate
+theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1.5])  # test case for low accretion rate
+
 # theta = np.array([6, 4.5, 2.0, 20, 9, 0, 1])
 # generate spectra with ysopy =================
-"""
+# """
 wave, flux = model_spec_window(theta, config)
 # plt.plot(wave, flux)
 # plt.show()
 
 np.save(f"{save_loc}/true_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", flux)
 np.save(f"{save_loc}/true_wave_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", wave)
-"""
+# """
 # =================
 obs_flux = np.load(f"{save_loc}/true_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy")
 # wavelength array for observed spectra
 obs_wave = np.load(f"{save_loc}/true_wave_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy")
 
 # trimming
-window = [4980, 5066.0]
+# window = [4980, 5066.0]
+window = [8225, 8375]
 wave_trimmed = np.where(obs_wave > window[0], obs_wave, 0)
 flux_trimmed = np.where(obs_wave > window[0], obs_flux, 0)
 flux_trimmed = np.where(obs_wave < window[1], flux_trimmed, 0)
@@ -117,7 +123,7 @@ np.save(f"{save_loc}/trimmed_wavem_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{th
 np.save(f"{save_loc}/snr_{snr}_obs_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", noisy_flux)
 np.save(f"{save_loc}/snr_{snr}_noise_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", noise_assumed)
 
-# plt.plot(obs_wave, obs_flux)
-# plt.plot(obs_wave, noisy_flux)
+# plt.plot(obs_wave, obs_flux/np.median(obs_flux))
+# plt.plot(obs_wave, noisy_flux/np.median(noisy_flux))
 # plt.show()
 

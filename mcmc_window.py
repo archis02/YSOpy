@@ -46,11 +46,11 @@ def config_reader(filepath):
     config_data['t_slab_u'] = float(parser['Parameters']['t_slab_u'])
     config_data['t_slab_l'] = float(parser['Parameters']['t_slab_l'])
     
-    # config_data['log_n_e_u'] = float(parser['Parameters']['log_n_e_u'])
-    # config_data['log_n_e_l'] = float(parser['Parameters']['log_n_e_l'])
+    config_data['log_n_e_u'] = float(parser['Parameters']['log_n_e_u'])
+    config_data['log_n_e_l'] = float(parser['Parameters']['log_n_e_l'])
     
-    # config_data['tau_u'] = float(parser['Parameters']['tau_u'])
-    # config_data['tau_l'] = float(parser['Parameters']['tau_l'])
+    config_data['tau_u'] = float(parser['Parameters']['tau_u'])
+    config_data['tau_l'] = float(parser['Parameters']['tau_l'])
 
     config_data['const_term_l'] = float(parser['Parameters']['const_term_l'])
     config_data['const_term_u'] = float(parser['Parameters']['const_term_u'])
@@ -67,7 +67,7 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_pa
 
     np.random.seed(123456)
     
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab']
+    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau"]
     initial_conditions = np.zeros((n_walkers, n_params + n_windows*(poly_order+1)))
 
     for i, param in enumerate(params):
@@ -106,6 +106,9 @@ def model_spec_window(theta,config):
     config['inclination'] = theta[3] * np.pi / 180.0 # radians
     config['t_slab'] = theta[4] *1000.0 * u.K
 
+    config["n_e"] = 10**theta[5] * u.cm**(-3)
+    config["tau"] = theta[6]
+
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array([0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
          0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4])
@@ -134,7 +137,7 @@ def model_spec_window(theta,config):
     # t4 = time.time()
     total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux, obs_dust_flux)
     # t5 = time.time()
-    total_flux /= np.median(total_flux)
+    # total_flux /= np.median(total_flux)
 
     # print(f"model run ... "
     #       f"\nvisc disk : {t1-t0:.2f}"
@@ -158,7 +161,7 @@ def log_prior(theta, config, config_mcmc):
     """
     n_windows = len(config['windows'])
     poly_order = config['poly_order']
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab']
+    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau"]
     n_model_params = len(theta) - n_windows * (poly_order + 1)
 
     theta_model = theta[:n_model_params]
@@ -235,7 +238,7 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
 def log_probability_window(theta,config,config_mcmc, xobs, yobs, yerr): # gives the posterior probability
 
     lp = log_prior(theta,config=config,config_mcmc=config_mcmc)
-    
+
     if not np.isfinite(lp): # if not finite, then probability is 0
         return -np.inf
     
