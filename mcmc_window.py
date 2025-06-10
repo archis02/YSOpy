@@ -40,8 +40,8 @@ def config_reader(filepath):
     config_data['inclination_u'] = float(parser['Parameters']['inclination_u'])
     config_data['inclination_l'] = float(parser['Parameters']['inclination_l'])
     
-    # config_data['t_0_u'] = float(parser['Parameters']['t_0_u'])
-    # config_data['t_0_l'] = float(parser['Parameters']['t_0_l'])
+    config_data['t_0_u'] = float(parser['Parameters']['t_0_u'])
+    config_data['t_0_l'] = float(parser['Parameters']['t_0_l'])
     
     config_data['t_slab_u'] = float(parser['Parameters']['t_slab_u'])
     config_data['t_slab_l'] = float(parser['Parameters']['t_slab_l'])
@@ -63,17 +63,16 @@ def config_reader(filepath):
 
     return config_data
 
-def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_params):
+def generate_initial_conditions(params_label, config_data,n_windows,poly_order,n_walkers, n_params):
     '''
     Generates initial conditions by drawing samples from a uniform distribution.
     A flat continuum is chosen'''
 
     np.random.seed(123456)
     
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
     initial_conditions = np.zeros((n_walkers, n_params + n_windows*(poly_order+1)))
-
-    for i, param in enumerate(params):
+    for i, param in enumerate(params_label):
         low = config_data[param + '_l']
         high = config_data[param + '_u']
 
@@ -83,10 +82,10 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_pa
     # add initial conditions for the continuum
     for j in range(n_windows):
         for k in range(poly_order):
-            initial_conditions[:,n_params+j*n_windows+k] = np.random.uniform(config_data['other_coeff_l'],config_data['other_coeff_u'],size=n_walkers)
-        
-        initial_conditions[:,n_params+j*n_windows+poly_order] = np.random.uniform(config_data['const_term_l'],config_data['const_term_u'],size=n_walkers)
-
+            initial_conditions[:, n_params + j * (poly_order + 1) + k] = np.random.uniform(
+                config_data['other_coeff_l'], config_data['other_coeff_u'], size=n_walkers)
+        initial_conditions[:, n_params + j * (poly_order + 1) + poly_order] = np.random.uniform(
+            config_data['const_term_l'], config_data['const_term_u'], size=n_walkers)
     return initial_conditions
 
 def model_spec_window(theta, config):
@@ -107,11 +106,11 @@ def model_spec_window(theta, config):
     config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
     config['inclination'] = theta[3] * np.pi / 180.0  # radians
-    config['t_slab'] = theta[4] * 1000.0 * u.K
-
-    config["n_e"] = 10**theta[5] * u.cm**(-3)
-    config["tau"] = theta[6]
-    config["av"] = theta[7]
+    # config["t_0"] = theta[4] * 1000
+    # config['t_slab'] = theta[4] * 1000.0 * u.K
+    # config["n_e"] = 10**theta[5] * u.cm**(-3)
+    # config["tau"] = theta[6]
+    # config["av"] = theta[7]
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
@@ -158,7 +157,7 @@ def convert_to_photon_counts(wave_ax, total_flux):
     flux_photo = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
     return flux_photo
 
-def log_prior(theta, config, config_mcmc):
+def log_prior(theta, config, params_label, config_mcmc):
     """
     Vectorized log prior using bounds from config_mcmc:
     - Model parameters: uniform priors from config_mcmc.
@@ -168,7 +167,8 @@ def log_prior(theta, config, config_mcmc):
     """
     n_windows = len(config['windows'])
     poly_order = config['poly_order']
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    params = params_label
     n_model_params = len(theta) - n_windows * (poly_order + 1)
 
     theta_model = theta[:n_model_params]
@@ -213,7 +213,7 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
     # Model spectrum (full)
     wave_model, total_flux, flux_photon_count = model_spec_window(theta_model, config)
     # change the below code from total_flux to photon_counts if obs_spectra is in photon counts
-    model_flux = flux_photon_count
+    model_flux = total_flux
 
     log_like = 0.0
 
@@ -228,6 +228,10 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
         window_obs = x_obs[l_idx:u_idx]
         flux_obs_window = y_obs[l_idx:u_idx]
         err_window = yerr[l_idx:u_idx]
+
+        # Normalise within the window
+        flux_obs_window /= np.median(flux_obs_window)
+        err_window /= np.median(err_window)
 
         # Interpolate model to the observed window wavelengths
         model_flux_window = np.interp(window_obs, wave_model, model_flux)
@@ -244,9 +248,9 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
 
     return log_like
 
-def log_probability_window(theta,config,config_mcmc, xobs, yobs, yerr): # gives the posterior probability
+def log_probability_window(theta, params_label, config, config_mcmc, xobs, yobs, yerr): # gives the posterior probability
 
-    lp = log_prior(theta,config=config,config_mcmc=config_mcmc)
+    lp = log_prior(theta,config=config,config_mcmc=config_mcmc, params_label=params_label)
 
     if not np.isfinite(lp): # if not finite, then probability is 0
         return -np.inf
@@ -259,7 +263,7 @@ def rad_vel_correction(wave_ax, vel):
     del_wav = (vel/const.c) * wave_ax
     return wave_ax - del_wav
 
-def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dict, config_data_mcmc, x_obs, y_obs, yerr):
+def main(p0, params_label, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dict, config_data_mcmc, x_obs, y_obs, yerr):
     '''
     Sets the MCMC running, parallelized by multiprocessing'''
 
@@ -269,7 +273,7 @@ def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dic
     backend = emcee.backends.HDFBackend(save_filename)
     backend.reset(n_walkers,n_dim)
     with Pool(processes=cpu_cores_used) as pool:
-        sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_probability_window, args=(config_dict,config_data_mcmc, x_obs, y_obs, yerr), backend=backend, pool=pool, blobs_dtype=float)
+        sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_probability_window, args=(params_label, config_dict, config_data_mcmc, x_obs, y_obs, yerr), backend=backend, pool=pool, blobs_dtype=float)
         sampler.run_mcmc(p0, n_iter, progress=True)
     
     end = time.time()
@@ -283,7 +287,7 @@ def main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dic
     return params
 
 
-def resume_sampling(backend_filename, niter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used):
+def resume_sampling(params_label, backend_filename, niter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used):
     start = time.time()
     # Load the existing backend
     backend = emcee.backends.HDFBackend(backend_filename)
@@ -300,7 +304,7 @@ def resume_sampling(backend_filename, niter_more, config_dict, config_data_mcmc,
     # Resume sampling
     with Pool(processes=cpu_cores_used) as pool:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability_window,
-                                        args=(config_dict, config_data_mcmc, x_obs, y_obs, yerr), backend=backend,
+                                        args=(params_label, config_dict, config_data_mcmc, x_obs, y_obs, yerr), backend=backend,
                                         pool=pool, blobs_dtype=float)
         sampler.run_mcmc(last_pos, niter_more, progress=True)
     end = time.time()
@@ -358,9 +362,8 @@ if __name__=="__main__":
     np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
     print("completed")
-"""
 ##############################################
-
+"""
 
 ##############################################
 #  This block is to restart sampling from a pre calculated chain

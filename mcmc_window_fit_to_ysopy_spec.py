@@ -31,9 +31,9 @@ if __name__=="__main__":
     theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1.5, 5])  # test case for Balmer Jump
     snr = 100
     # read data for Marvin
-    path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
+    # path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
     # GD
-    # path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
+    path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
     # AM
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
 
@@ -47,13 +47,13 @@ if __name__=="__main__":
     # data[0] = rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
 
     x_obs = data_wave
-    y_obs = data_flux/np.median(data_flux)
-    yerr = data_error/np.median(data_flux)
+    y_obs = data_flux  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
+    yerr = data_error  # /np.median(data_flux)
 
     # filename where the chain will be stored
     save_filename = f'mcmc_total_spec_{snr}_balmer_jump.h5'
 
-    n_params = 7  # number of parameters that are varying
+    n_params = len(theta)  # number of parameters that are varying
     n_walkers = 35
     n_iter = 500
 
@@ -62,11 +62,13 @@ if __name__=="__main__":
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
     n_windows = len(config_dict['windows'])
     poly_order = config_dict['poly_order']
-    p0 = mc_file.generate_initial_conditions(config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers, n_params=n_params)
+    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    params_label = ['m', 'log_m_dot', 'b', 'inclination', 't_0']
+    p0 = mc_file.generate_initial_conditions(params_label, config_data_mcmc, n_windows=n_windows, poly_order=poly_order, n_walkers=n_walkers, n_params=n_params)
     n_dim = n_params + n_windows * (poly_order + 1)
 
     # MAIN
-    params = mc_file.main(p0, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dict, config_data_mcmc, x_obs, y_obs, yerr)
+    params = mc_file.main(p0, params_label, n_dim, n_walkers, n_iter, cpu_cores_used, save_filename, config_dict, config_data_mcmc, x_obs, y_obs, yerr)
 
     # np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
@@ -77,7 +79,7 @@ if __name__=="__main__":
 
 ##############################################
 #  This block is to restart sampling from a pre calculated chain
-"""
+
 if __name__ == "__main__":
     cores = cpu_count()
     # theta = np.array([6, 4.5, 2.0, 20, 9])  # test case for high accretion rate
@@ -102,8 +104,8 @@ if __name__ == "__main__":
         f"{path_to_valid}/snr_{snr}_noise_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy")
 
     x_obs = data_wave
-    y_obs = data_flux / np.median(data_flux)
-    yerr = data_error / np.median(data_flux)
+    y_obs = data_flux
+    yerr = data_error
 
     # filename where the chain will be stored
     save_filename = f'mcmc_total_spec_{snr}_balmer_jump.h5'
@@ -115,11 +117,11 @@ if __name__ == "__main__":
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
 
     # print(log_likelihood_window(p0, config_dict))
-    params = mc_file.resume_sampling(save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used=cores)
+    params_label = ['m', 'log_m_dot', 'b', 'inclination', 't_0']
+    params = mc_file.resume_sampling(params_label, save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs, y_obs, yerr, cpu_cores_used=cores)
 
     # MAIN
     # params = main(p0, n_dim, n_walkers,config_dict,config_data_mcmc, x_obs, y_obs, yerr)
     # np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
     print("completed")
-"""
