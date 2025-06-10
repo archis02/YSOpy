@@ -13,8 +13,8 @@ import mcmc_window as mc_file
 save_loc = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
 config = utils.config_read_bare("ysopy/config_file.cfg")
 # theta = np.array([6, 4.5, 2.0, 20, 9])  # test case for high accretion rate
-theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1.5])  # test case for low accretion rate
-
+# theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1])  # test case for low accretion rate
+theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1, 5])  # test case for Balmer jump thing
 # theta = np.array([6, 4.5, 2.0, 20, 9, 0, 1])
 # generate spectra with ysopy =================
 # """
@@ -34,7 +34,8 @@ obs_wave = np.load(f"{save_loc}/true_wave_m_{theta[0]}_mdot_{theta[1]}_b_{theta[
 
 # trimming
 # window = [4980, 5066.0]
-window = [8000, 8400]
+# window = [8000, 8400]  # for low mdot , paschen jump
+window = [3600, 3700]  # for low mdot , Balmer jump
 wave_trimmed = np.where(obs_wave > window[0], obs_wave, 0)
 flux_trimmed = np.where(obs_wave > window[0], obs_flux, 0)
 flux_trimmed = np.where(obs_wave < window[1], flux_trimmed, 0)
@@ -68,11 +69,12 @@ def generate_poisson_noise_for_flux(snr, flux_arr):
 
 poisson_noise_flux, sigma_arr, flux_arr = generate_poisson_noise_for_flux(snr, obs_flux)
 
-# plt.plot(obs_wave, flux_arr/np.median(flux_arr))
-# plt.plot(obs_wave, poisson_noise_flux/np.median(poisson_noise_flux))
+# plt.plot(obs_wave, flux_arr)#/np.median(flux_arr))
+# plt.plot(obs_wave, poisson_noise_flux)#/np.median(poisson_noise_flux))
+# plt.fill_between(obs_wave, flux_arr + np.sqrt(flux_arr),  flux_arr - np.sqrt(flux_arr), alpha=0.2)
 # plt.show()
 np.save(f"{save_loc}/trimmed_wavem_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", wave_trimmed)
 np.save(f"{save_loc}/snr_{snr}_obs_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", poisson_noise_flux)
 np.save(f"{save_loc}/snr_{snr}_noise_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy",sigma_arr)
-
+#
 

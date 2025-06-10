@@ -58,6 +58,9 @@ def config_reader(filepath):
     config_data['other_coeff_l'] = float(parser['Parameters']['other_coeff_l'])
     config_data['other_coeff_u'] = float(parser['Parameters']['other_coeff_u'])
 
+    config_data['av_l'] = float(parser['Parameters']['av_l'])
+    config_data['av_u'] = float(parser['Parameters']['av_u'])
+
     return config_data
 
 def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_params):
@@ -67,7 +70,7 @@ def generate_initial_conditions(config_data,n_windows,poly_order,n_walkers, n_pa
 
     np.random.seed(123456)
     
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau"]
+    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
     initial_conditions = np.zeros((n_walkers, n_params + n_windows*(poly_order+1)))
 
     for i, param in enumerate(params):
@@ -108,7 +111,7 @@ def model_spec_window(theta, config):
 
     config["n_e"] = 10**theta[5] * u.cm**(-3)
     config["tau"] = theta[6]
-
+    config["av"] = theta[7]
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
@@ -165,7 +168,7 @@ def log_prior(theta, config, config_mcmc):
     """
     n_windows = len(config['windows'])
     poly_order = config['poly_order']
-    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau"]
+    params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
     n_model_params = len(theta) - n_windows * (poly_order + 1)
 
     theta_model = theta[:n_model_params]
