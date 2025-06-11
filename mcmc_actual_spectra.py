@@ -32,23 +32,25 @@ if __name__ == "__main__":
     # path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
     # AM
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
-
+    # loading data for V960 Mon
     data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
-
+    data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
 
     # radial velocity correction, taken from header
-    data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
+    # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
 
     x_obs = data[0]
     y_obs = data[1]  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
     yerr = data[2]  # /np.median(data_flux)
 
     # filename where the chain will be stored
-    save_filename = f'v960_stitched_all_windows.h5'
+    # save_filename = f'v960_stitched_all_windows.h5'
+    save_filename = f"ex_lupi"
+    params_label = ['m', 'log_m_dot', 'b', 'inclination']  # for V960 Mon
+    params_label = ['m', 'log_m_dot', 'b', 'inclination', "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
 
-    params_label = ['m', 'log_m_dot', 'b', 'inclination']
     n_params = len(params_label)  # number of parameters that are varying
-    n_walkers = 80
+    n_walkers = 35
     n_iter = 1000
 
     # generate initial conditions
