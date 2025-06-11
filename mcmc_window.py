@@ -230,8 +230,8 @@ def log_likelihood_window(theta, config, x_obs, y_obs, yerr):
         err_window = yerr[l_idx:u_idx]
 
         # Normalise within the window
+        err_window /= np.median(flux_obs_window)
         flux_obs_window /= np.median(flux_obs_window)
-        err_window /= np.median(err_window)
 
         # Interpolate model to the observed window wavelengths
         model_flux_window = np.interp(window_obs, wave_model, model_flux)
