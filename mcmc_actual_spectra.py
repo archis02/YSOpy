@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # AM
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
     # loading data for V960 Mon
-    data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
+    # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
     data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
 
     # radial velocity correction, taken from header
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
 
     data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
-
+    data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
 
     # radial velocity correction, taken from header
     data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
@@ -108,6 +108,7 @@ if __name__ == "__main__":
 
     # print(log_likelihood_window(p0, config_dict))
     params_label = ['m', 'log_m_dot', 'b', 'inclination']
+    params_label = ['m', 'log_m_dot', 'b', 'inclination', "t_slab", "log_n_e", "tau", "av"]
     params = mc_file.resume_sampling(params_label, save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs,
                                      y_obs, yerr, cpu_cores_used=cores)
 
