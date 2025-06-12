@@ -33,24 +33,24 @@ if __name__ == "__main__":
     # AM
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
     # loading data for V960 Mon
-    # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
-    data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
+    data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
+    # data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
 
     # radial velocity correction, taken from header
-    # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
+    data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 43 * u.km / u.s)
 
     x_obs = data[0]
     y_obs = data[1]  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
     yerr = data[2]  # /np.median(data_flux)
 
     # filename where the chain will be stored
-    # save_filename = f'v960_stitched_all_windows.h5'
-    save_filename = f"ex_lupi"
-    params_label = ['m', 'log_m_dot', 'b', 'inclination']  # for V960 Mon
-    params_label = ['m', 'log_m_dot', 'b', 'inclination', "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
+    save_filename = f'v960_mon_changed_inclination_all_windows.h5'
+    # save_filename = f"ex_lupi.h5"
+    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
+    # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
 
     n_params = len(params_label)  # number of parameters that are varying
-    n_walkers = 35
+    n_walkers = 80
     n_iter = 1000
 
     # generate initial conditions
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
     n_windows = len(config_dict['windows'])
     poly_order = config_dict['poly_order']
-    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    # params = ['m', 'log_m_dot', 'b', 'cos_inclination', 't_slab', "log_n_e", "tau", "av"]
     p0 = mc_file.generate_initial_conditions(params_label, config_data_mcmc, n_windows=n_windows, poly_order=poly_order,
                                              n_walkers=n_walkers, n_params=n_params)
     n_dim = n_params + n_windows * (poly_order + 1)
@@ -107,8 +107,8 @@ if __name__ == "__main__":
     config_dict = utils.config_read_bare("ysopy/config_file.cfg")
 
     # print(log_likelihood_window(p0, config_dict))
-    params_label = ['m', 'log_m_dot', 'b', 'inclination']
-    params_label = ['m', 'log_m_dot', 'b', 'inclination', "t_slab", "log_n_e", "tau", "av"]
+    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']
+    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_slab", "log_n_e", "tau", "av"]
     params = mc_file.resume_sampling(params_label, save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs,
                                      y_obs, yerr, cpu_cores_used=cores)
 

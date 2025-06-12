@@ -37,8 +37,8 @@ def config_reader(filepath):
     config_data['b_u'] = float(parser['Parameters']['b_u'])
     config_data['b_l'] = float(parser['Parameters']['b_l'])
     
-    config_data['inclination_u'] = float(parser['Parameters']['inclination_u'])
-    config_data['inclination_l'] = float(parser['Parameters']['inclination_l'])
+    config_data['cos_inclination_u'] = float(parser['Parameters']['cos_inclination_u'])
+    config_data['cos_inclination_l'] = float(parser['Parameters']['cos_inclination_l'])
     
     config_data['t_0_u'] = float(parser['Parameters']['t_0_u'])
     config_data['t_0_l'] = float(parser['Parameters']['t_0_l'])
@@ -70,7 +70,7 @@ def generate_initial_conditions(params_label, config_data,n_windows,poly_order,n
 
     np.random.seed(123456)
     
-    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    # params = ['m', 'log_m_dot', 'b', 'cos_inclination', 't_slab', "log_n_e", "tau", "av"]
     initial_conditions = np.zeros((n_walkers, n_params + n_windows*(poly_order+1)))
     for i, param in enumerate(params_label):
         low = config_data[param + '_l']
@@ -105,7 +105,7 @@ def model_spec_window(theta, config):
     config['m'] = theta[0] / 10.0 * const.M_sun.value
     config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
-    config['inclination'] = theta[3] * np.pi / 180.0  # radians
+    config['inclination'] = np.arccos(theta[3])# * np.pi / 180.0  # radians
     # config["t_0"] = theta[4] * 1000
     # config['t_slab'] = theta[4] * 1000.0 * u.K
     # config["n_e"] = 10**theta[5] * u.cm**(-3)
@@ -167,7 +167,7 @@ def log_prior(theta, config, params_label, config_mcmc):
     """
     n_windows = len(config['windows'])
     poly_order = config['poly_order']
-    # params = ['m', 'log_m_dot', 'b', 'inclination', 't_slab', "log_n_e", "tau", "av"]
+    # params = ['m', 'log_m_dot', 'b', 'cos_inclination', 't_slab', "log_n_e", "tau", "av"]
     params = params_label
     n_model_params = len(theta) - n_windows * (poly_order + 1)
 
