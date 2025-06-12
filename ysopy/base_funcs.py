@@ -569,6 +569,71 @@ def generate_temp_arr_planet(config, mass_p, dist_p, d):
     return r_visc, t_visc, d_new  # , temp_arr
 
 
+def generate_visc_flux_no_convolve(config, d: dict, t_max, dr, r_in=None):
+    """Generate the flux contributed by the viscously heated disk, but do not include convolutions
+    This is useful for trying to fit continua, which are unchanged by the rotational broadening of the lines.
+    Parameters
+    ----------
+    config : dict
+        dictionary containing system parameters
+    d : dict
+        dictionary produced by generate_temp_arr, having the radii and their
+        corresponding temperatures reduced to the integer values
+    t_max : int
+        maximum temperature of the viscously heated disk, reduced to nearest int BT-Settl value
+    dr :
+        thickness of each annulus
+    r_in : astropy.units.Quantity
+        inner truncation radius, needed to estimate padding
+    Returns
+    ----------
+    wavelength : numpy.ndarray
+        wavelength array in units of Angstrom, in vacuum
+    obs_viscous_disk_flux : numpy.ndarray
+        observed flux from the viscous disk, in units of erg / (cm^2 s A)
+    """
+    plot = config['plot']
+    save = config['save']
+    save_loc = config['save_loc']
+    d_star = config['d_star']
+    inclination = config['inclination']
+    l_min = config['l_min']
+    l_max = config['l_max']
+    n_data = config['n_data']
+    viscous_disk_flux = np.zeros(n_data)
+    for int_temp in range(t_max, 13, -1):
+        temp_flux = np.zeros(n_data)  # to store total flux contribution from annuli of this temperature
+        radii = np.array([r for r, t in d.items() if t == int_temp])
+        radii = sorted(radii, reverse=True)
+        if int_temp in range(14, 20):  # constrained by availability of BT-Settl models
+            logg = 3.5
+        else:
+            logg = 1.5
+        if len(radii) != 0:
+            # get the wavelength (in AIR) and flux
+            wavelength_air, flux = read_bt_settl_npy(config, int_temp, logg, r_in, ret_full_wavelength_ax=True)
+            # convert to vacuum
+            wavelength = wave.airtovac(wavelength_air*u.AA).value
+        for r in radii:
+            x_throw, y_final = logspace_reinterp(config, wavelength, flux)
+            temp_flux += y_final * np.pi * (2 * r * dr + dr ** 2)
+        viscous_disk_flux += temp_flux
+        if config['verbose']:
+            print("completed for temperature of", int_temp, "\nnumber of rings included:", len(radii))
+    # wavelength must be redefined here, because x_throw is not in scope here
+    wavelength = np.logspace(np.log10(l_min), np.log10(l_max), n_data)
+    obs_viscous_disk_flux = viscous_disk_flux * np.cos(inclination) / (np.pi * d_star ** 2)
+    if save:
+        np.save(f'{save_loc}/disk_component.npy', obs_viscous_disk_flux)
+    if plot:
+        plt.plot(wavelength, obs_viscous_disk_flux)
+        plt.xlabel("Wavelength [Angstrom]")
+        plt.ylabel(r"Flux [erg / ($cm^{2}$ s A)]")
+        plt.title("Viscous Disk SED")
+        plt.show()
+    return wavelength, obs_viscous_disk_flux
+
+
 def generate_visc_flux(config, d: dict, t_max, dr, r_in=None):
     """Generate the flux contributed by the viscously heated disk
 

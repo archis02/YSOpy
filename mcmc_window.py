@@ -105,7 +105,7 @@ def model_spec_window(theta, config):
     config['m'] = theta[0] / 10.0 * const.M_sun.value
     config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
-    config['inclination'] = np.arccos(theta[3])# * np.pi / 180.0  # radians
+    config['inclination'] = np.arccos(theta[3]/10)# * np.pi / 180.0  # radians
     # config["t_0"] = theta[4] * 1000
     # config['t_slab'] = theta[4] * 1000.0 * u.K
     # config["n_e"] = 10**theta[5] * u.cm**(-3)
