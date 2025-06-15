@@ -3,6 +3,8 @@
 *.npy
 *.log
 *.h5
+*.pdf
+data
 __pycache__/
 *.txt
 **/__pycache__/
@@ -10,4 +12,4 @@ __pycache__/
 /ysopy/*.log
 /ysopy/rough-work.ipynb
 /ysopy/rough-work.py
-*.jl
+/ysopy/config_file.cfg
