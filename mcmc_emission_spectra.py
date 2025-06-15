@@ -77,6 +77,11 @@ def model_spec_window_no_convolution(theta, config):
     # t4 = time.time()
     total_flux = bf.dust_extinction_flux(config, wave_ax, obs_viscous_disk_flux, obs_star_flux, obs_mag_flux,
                                          obs_dust_flux)
+
+    ####### Convolution
+    window_size = 101
+    total_flux = np.convolve(total_flux, np.ones(window_size) / window_size, 'same')
+
     # t5 = time.time()
     # total_flux /= np.median(total_flux)
     flux_photon = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
@@ -214,14 +219,14 @@ def resume_sampling(params_label, backend_filename, niter_more, config_dict, con
 if __name__ == "__main__":
     cpu_cores_used = cpu_count()
     # read data for Marvin
-    # path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
+    path_to_valid = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
     # GD
-    path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
+    # path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
     # AM
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
     # loading data for V960 Mon
     # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
-    data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
+    data = np.load(f"{path_to_valid}/data_ex_lupi_smooth.npy")
 
     # radial velocity correction, taken from header
     # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 43 * u.km / u.s)
@@ -232,12 +237,12 @@ if __name__ == "__main__":
 
     # filename where the chain will be stored
     # save_filename = f'v960_mon_changed_inclination_all_windows.h5'
-    save_filename = f"ex_lupi_balmer.h5"
+    save_filename = f"ex_lupi_balmer_smooth.h5"
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
     params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
 
     n_params = len(params_label)  # number of parameters that are varying
-    n_walkers = 80
+    n_walkers = 35
     n_iter = 1000
 
     # generate initial conditions

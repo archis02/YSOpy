@@ -1,13 +1,13 @@
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import astropy.constants as const
 
 # Gautam
-hdu = fits.open('/Users/tusharkantidas/github/tifr_2025/xshooter_spectra/archive_data/ADP.2023-04-05T09:17:48.818.fits')
+# hdu = fits.open('/Users/tusharkantidas/github/tifr_2025/xshooter_spectra/archive_data/ADP.2023-04-05T09:17:48.818.fits')
 # Marvin
-# hdu = fits.open("/home/nius2022/observational_data/ex_lupi/ADP.2023-04-05T09:17:48.818.fits")
+hdu = fits.open("/home/nius2022/observational_data/ex_lupi/ADP.2023-04-05T09:17:48.818.fits")
 print(hdu.info())
 data = hdu[1].data
 print(data.columns)
@@ -85,7 +85,7 @@ def mask_in_window(window_wave, wave, flux, compress=False):
     return wave_trim, flux_trim
 
 
-plt.plot(wave_trimmed, flux_trimmed, 'r', label="Unfiltered")
+# plt.plot(wave_trimmed, flux_trimmed, 'r', label="Unfiltered")
 # plt.fill_between(wave_trimmed, flux_trimmed - error_trimmed, flux_trimmed + error_trimmed,color="blue", alpha=0.5)
 wave_trim = wave_trimmed
 flux_trim = flux_trimmed
@@ -97,14 +97,14 @@ for i in range(len(mask_window)):
     print(mask_window[i])
     wave_trim, flux_trim = mask_in_window(mask_window[i], wave_trim, flux_trim, compress=True)
     wave_err_trim, err_trim = mask_in_window(mask_window[i], wave_err_trim, err_trim, compress=True)
-plt.plot(wave_trim, flux_trim, "k", label="Filtered")
+# plt.plot(wave_trim, flux_trim, "k", label="Filtered")
 non_emission_smooth = np.convolve(flux_trim, np.ones(window_size)/window_size, 'smooth')
 for i in range(9):
     non_emission_smooth = np.convolve(non_emission_smooth, np.ones(window_size)/window_size, 'same')
-plt.plot(wave_trim, non_emission_smooth, color='b', label="Smoothed")
-plt.fill_between(wave_trim, non_emission_smooth - err_trim, non_emission_smooth + err_trim, color='b', alpha=0.5)
-plt.legend()
-plt.show()
+# plt.plot(wave_trim, non_emission_smooth, color='b', label="Smoothed")
+# plt.fill_between(wave_trim, non_emission_smooth - err_trim, non_emission_smooth + err_trim, color='b', alpha=0.5)
+# plt.legend()
+# plt.show()
 # plt.plot(wave_trimmed, error_trimmed, 'r', label="Error Unfiltered")
 # plt.plot(wave_trimmed, error_smooth_trimmed, "k", label="Error Smoothed")
 # plt.legend()
@@ -135,5 +135,5 @@ data_reduced[0] = wave_trim
 data_reduced[1] = non_emission_smooth
 data_reduced[2] = err_trim
 
-np.save(f"{save_loc}/data_ex_lupi.npy", data_reduced)
+np.save(f"{save_loc}/data_ex_lupi_smooth.npy", data_reduced)
 
