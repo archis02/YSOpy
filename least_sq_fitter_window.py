@@ -116,7 +116,7 @@ def residuals_windows(theta,poly_order,residual_len):
     start=time.time()
 
     residual = np.zeros(residual_len)
-    windows = config['windows'] # list of wavelength ranges in which residual is to be evaluated
+    windows = config['windows']  # list of wavelength ranges in which residual is to be evaluated
     n_windows = len(windows)
     n_model_params = len(theta) - n_windows * (poly_order + 1)
     theta_model = theta[:n_model_params]
@@ -135,7 +135,7 @@ def residuals_windows(theta,poly_order,residual_len):
         err_window = yerr[window_obs_l:window_obs_u]
 
         # interpolate the model to the same axis
-        model_flux_window = np.interp(window_obs,wave,model_flux)
+        model_flux_window = np.interp(window_obs, wave, model_flux)
         
         # continuum correction
         poly_func = np.polyval(poly_coeffs, window_obs)
