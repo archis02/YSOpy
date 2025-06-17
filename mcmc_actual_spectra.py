@@ -45,11 +45,11 @@ if __name__ == "__main__":
     yerr = data[2]  # /np.median(data_flux)
 
     # filename where the chain will be stored
-    save_filename = f'v899_mon_all_windows.h5'
+    save_filename = f'v899_mon_less_params.h5'
     # save_filename = f"ex_lupi.h5"
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
-    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
-
+    # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi, 899
+    params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
     n_params = len(params_label)  # number of parameters that are varying
     n_walkers = 70
     n_iter = 1000
