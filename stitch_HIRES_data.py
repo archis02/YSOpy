@@ -8,10 +8,10 @@ import sys
 
 # Define base path, for archis
 # path_to_valid = "/home/arch/yso/validation_files/"
-path_to_valid = "/home/nius2022/observational_data/v960mon/"
+path_to_valid = "/home/nius2022/observational_data/"
 # path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
-# flux_dir = os.path.join(path_to_valid, 'KOA_93088/HIRES/extracted/tbl/ccd1/flux/')  # V960 Mon
-flux_dir = os.path.join(path_to_valid, "KOA_90631/HIRES/extracted/tbl/ccd1/flux")  # V899 Mon # Joe Sir's Target  27/10/15
+# flux_dir = os.path.join(path_to_valid, 'v960mon/KOA_93088/HIRES/extracted/tbl/ccd1/flux/')  # V960 Mon
+flux_dir = os.path.join(path_to_valid, "v899mon/KOA_90631/HIRES/extracted/tbl/ccd1/flux")  # V899 Mon # Joe Sir's Target  27/10/15
 # For Marvin and Archis
 file_pattern = os.path.join(flux_dir, '*.tbl.gz')
 # for Gautam
