@@ -121,8 +121,8 @@ def model_spec_window(theta, config):
     rad_arr = np.array(
         [0.271, 0.326, 0.372, 0.467, 0.536, 0.628, 0.702, 0.781, 0.803, 0.829, 0.877, 0.959, 1.002, 1.079, 1.214, 1.327,
          1.465, 1.503, 1.636, 1.753, 1.87, 1.971, 2.096, 2.2, 2.31, 2.416, 2.52, 2.612, 2.71, 2.797])
-    func_temp = interp1d(m, temp_arr)
-    func_rad = interp1d(m, rad_arr)
+    func_temp = interp1d(m, temp_arr, bounds_error=False, fill_value="extrapolate")
+    func_rad = interp1d(m, rad_arr, bounds_error=False, fill_value="extrapolate")
 
     config["t_star"] = int(func_temp(theta[0] / 10.0) / 100.0) * 100.0
     config["r_star"] = func_rad(theta[0] / 10.0) * const.R_sun.value
