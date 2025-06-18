@@ -318,7 +318,7 @@ def resume_sampling(params_label, backend_filename, niter_more, config_dict, con
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability_window,
                                         args=(params_label, config_dict, config_data_mcmc, x_obs, y_obs, yerr), backend=backend,
                                         pool=pool, blobs_dtype=float)
-        sampler.run_mcmc(last_pos, niter_more, progress=True)
+        sampler.run_mcmc(last_pos, niter_more, progress=True, skip_initial_state_check=True)
     end = time.time()
     multi_time = end - start
     print("Finished resuming.")
