@@ -11,10 +11,12 @@ import sys
 path_to_valid = "/home/nius2022/observational_data/"
 # path_to_valid = "/Users/tusharkantidas/github/archis/Buffer/store_spectra"
 # flux_dir = os.path.join(path_to_valid, 'v960mon/KOA_93088/HIRES/extracted/tbl/ccd1/flux/')  # V960 Mon
-flux_dir = os.path.join(path_to_valid, "v899mon/KOA_90631/HIRES/extracted/tbl/ccd2/flux")  # V899 Mon # Joe Sir's Target  27/10/15
+# flux_dir = os.path.join(path_to_valid, "v899mon/KOA_90631/HIRES/extracted/tbl/ccd2/flux")  # V899 Mon # Joe Sir's Target  27/10/15
+flux_dir = os.path.join(path_to_valid, "hbc722/KOA_82942/HIRES/extracted/tbl/ccd2/flux")  # HBC 722 # 27/10/15--> Hillenbrand's obs 36frames
+
 # For Marvin and Archis
 file_pattern = os.path.join(flux_dir, '*.tbl.gz')
-# for Gautam
+# for Gautam # only v960 mon
 # file_pattern = os.path.join(flux_dir, '*.tbl')
 
 # Get all files
@@ -180,10 +182,15 @@ mask_window = [[4850, 4870],
                [5875, 5906]]  # Na line
 
 # CCD2
-valid_window = [[6367, 6423], [6440, 6540], [6600, 6660], [6683, 6767], [6803, 6867], [6943, 7033], [7073, 7143],
-                [7216, 7292], [7392, 7494]]
+# HBC722 CCD2
+valid_window = [[6233, 6308], [6315, 6422], [6429, 6539], [6570, 6660], [6671, 6787], [6799, 6866], [6934, 7050],
+                [7073, 7166], [7216, 7340], [7367, 7493], [7524, 7593]]
+# V899 CCD2
+# valid_window = [[6367, 6423], [6440, 6540], [6600, 6660], [6683, 6767], [6803, 6867], [6943, 7033], [7073, 7143],
+#                 [7216, 7292], [7392, 7494]]
 # window = [4780, 6130]  # for CCD1 HIRES V899
-window = [6366, 7495]  # for CCD2 HIRES V899
+# window = [6366, 7495]  # for CCD2 HIRES V899
+window = [6233, 7593]  # for CCD2 HIRES HBC722
 wave_arr = data_tot[0]
 flux_arr = data_tot[1]
 flx_error_arr = data_tot[2]
@@ -207,7 +214,7 @@ err_trim = error_trimmed
 # exit(0)
 ############
 
-####### FOr CCD2 V899
+####### FOr CCD2 V899/HBC722
 valid_window = np.array(valid_window)
 # defining
 wave_comb_window = np.array([0])
@@ -252,7 +259,8 @@ data_reduced = np.zeros((3, len(wave_comb_window)))
 data_reduced[0] = wave_comb_window
 data_reduced[1] = flux_comb_window
 data_reduced[2] = err_comb_window
-np.save(f"{save_loc}/data_v899_mon_ccd2.npy", data_reduced)
+# np.save(f"{save_loc}/data_v899_mon_ccd2.npy", data_reduced)
+np.save(f"{save_loc}/data_hbc722_mon_ccd2.npy", data_reduced)
 ################
 
 

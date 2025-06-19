@@ -34,25 +34,30 @@ if __name__ == "__main__":
     # path_to_valid = "/home/arch/yso/results/synthetic_fit"
     # loading data for V960 Mon
     # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
-    data = np.load(f"{path_to_valid}/data_v899_mon_cc2.npy")
+    # data = np.load(f"{path_to_valid}/data_v899_mon_cc2.npy")
+    data = np.load(f"{path_to_valid}/data_hbc722_mon_ccd2.npy")
     # data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
 
     # radial velocity correction, taken from header
     # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 43 * u.km / u.s)  # V960 Mon
-    data[0] = mc_file.rad_vel_correction(data[0] * u.AA, 27.92 * u.km / u.s)  # V899 Mon
+    # data[0] = mc_file.rad_vel_correction(data[0] * u.AA, 27.92 * u.km / u.s)  # V899 Mon
+    data[0] = mc_file.rad_vel_correction(data[0] * u.AA, -10.0 * u.km / u.s)  # HBC 722, Carvalho paper
     x_obs = data[0]
     y_obs = data[1]  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
     yerr = data[2]  # /np.median(data_flux)
 
     # filename where the chain will be stored
-    save_filename = f'v899_mon_ccd2.h5'
+    # save_filename = f'v899_mon_ccd2.h5'
+    save_filename = f'hbc722_ccd2.h5'
     # save_filename = f"ex_lupi.h5"
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi, 899
-    params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
+    # params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
+    params_hbc722 = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]
+    params_label = params_hbc722
     n_params = len(params_label)  # number of parameters that are varying
-    n_walkers = 70
-    n_iter = 10000
+    n_walkers = 80
+    n_iter = 1000
 
     # generate initial conditions
     config_data_mcmc = mc_file.config_reader('mcmc_config.cfg')
@@ -77,7 +82,7 @@ if __name__ == "__main__":
 
 ##############################################
 #  This block is to restart sampling from a pre calculated chain
-# """
+"""
 if __name__ == "__main__":
     cores = cpu_count()
 
@@ -91,9 +96,12 @@ if __name__ == "__main__":
     # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
     # data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
     data = np.load(f"{path_to_valid}/data_v899_mon.npy")
+    data = np.load(f"{path_to_valid}/data_hbc722_mon_ccd2.npy")
+    
     # radial velocity correction, taken from header
     # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 40.3 * u.km / u.s)
-    data[0] = mc_file.rad_vel_correction(data[0] * u.AA, 27.92 * u.km / u.s)  # V899 Mon
+    # data[0] = mc_file.rad_vel_correction(data[0] * u.AA, 27.92 * u.km / u.s)  # V899 Mon
+    data[0] = mc_file.rad_vel_correction(data[0] * u.AA, -10.0 * u.km / u.s)  # HBC 722, Carvalho paper
     x_obs = data[0]
     y_obs = data[1]  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
     yerr = data[2]  # /np.median(data_flux)
@@ -101,7 +109,8 @@ if __name__ == "__main__":
     # filename where the chain will be stored
     # save_filename = f'v960_stitched_all_windows.h5'
     save_filename = f'v899_mon_less_params.h5'
-    n_iter_more = 10000  # Define the extra number of iterations to be done
+    save_filename = f'hbc722_ccd2.h5'
+    n_iter_more = 1000  # Define the extra number of iterations to be done
 
     # generate initial conditions
     config_data_mcmc = mc_file.config_reader('mcmc_config.cfg')
@@ -110,7 +119,9 @@ if __name__ == "__main__":
     # print(log_likelihood_window(p0, config_dict))
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_slab", "log_n_e", "tau", "av"]
-    params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
+    # params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
+    params_hbc722 = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]
+    params_label = params_hbc722
     params = mc_file.resume_sampling(params_label, save_filename, n_iter_more, config_dict, config_data_mcmc, x_obs,
                                      y_obs, yerr, cpu_cores_used=cores)
 
@@ -119,4 +130,4 @@ if __name__ == "__main__":
     # np.save(f"trial1_v960_steps_{n_iter}_walkers_{n_walkers}.npy",params)
 
     print("completed")
-# """
+"""
