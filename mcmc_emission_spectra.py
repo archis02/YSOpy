@@ -41,11 +41,11 @@ def model_spec_window_no_convolution(theta, config):
     config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
     config['inclination'] = np.arccos(theta[3]/10)# * np.pi / 180.0  # radians
-    # config["t_0"] = theta[4] * 1000
-    # config['t_slab'] = theta[4] * 1000.0 * u.K
-    # config["n_e"] = 10**theta[5] * u.cm**(-3)
-    # config["tau"] = theta[6]
-    # config["av"] = theta[7]
+    config["t_0"] = theta[4] * 1000
+    config['t_slab'] = theta[5] * 1000.0 * u.K
+    config["n_e"] = 10**theta[6] * u.cm**(-3)
+    config["tau"] = theta[7]
+    # config["av"] = theta[8]
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
@@ -79,9 +79,11 @@ def model_spec_window_no_convolution(theta, config):
                                          obs_dust_flux)
 
     ####### Convolution
-    window_size = 101
-    total_flux = np.convolve(total_flux, np.ones(window_size) / window_size, 'same')
-
+    # window_size = 101
+    # conv_spec = np.convolve(total_flux, np.ones(window_size) / window_size, 'same')
+    # for i in range(200):
+    #     conv_spec= np.convolve(conv_spec/np.median(conv_spec), np.ones(window_size) / window_size, 'same')
+    # total_flux = conv_spec
     # t5 = time.time()
     # total_flux /= np.median(total_flux)
     flux_photon = (total_flux * 1e-7) * (wave_ax * 1e-10) / (const.h.value * const.c.value)
@@ -239,11 +241,11 @@ if __name__ == "__main__":
     # save_filename = f'v960_mon_changed_inclination_all_windows.h5'
     save_filename = f"ex_lupi_balmer_smooth.h5"
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
-    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi
+    params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]  # for Ex Lupi
 
     n_params = len(params_label)  # number of parameters that are varying
     n_walkers = 35
-    n_iter = 1000
+    n_iter = 5000
 
     # generate initial conditions
     config_data_mcmc = mc_file.config_reader('mcmc_config.cfg')

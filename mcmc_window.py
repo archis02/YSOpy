@@ -77,8 +77,7 @@ def generate_initial_conditions(params_label, config_data,n_windows,poly_order,n
         high = config_data[param + '_u']
 
         # uniform distribution
-        initial_conditions[:,i] = np.random.uniform(low,high,size=n_walkers)
-
+        initial_conditions[:,i] = np.random.uniform(low,high, size=n_walkers)
     # add initial conditions for the continuum
     for j in range(n_windows):
         for k in range(poly_order):
