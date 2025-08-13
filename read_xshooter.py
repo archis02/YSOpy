@@ -5,25 +5,34 @@ import matplotlib.pyplot as plt
 import astropy.constants as const
 
 # Gautam
-hdu = fits.open('/Users/tusharkantidas/github/tifr_2025/xshooter_spectra/archive_data/ADP.2023-04-05T09:17:48.818.fits')
+# filename = "ADP.2023-04-05T09:17:48.818.fits"
+# filename = "ADP.2014-05-17T100341.830.fits"
+filename = "ADP.2014-05-17T100341.430.fits"
+# hdu = fits.open(f'/Users/tusharkantidas/github/tifr_2025/xshooter_spectra/archive_data/{filename}')
+hdu = fits.open(f"/Users/tusharkantidas/github/tifr_2025/xshooter_spectra/{filename}")
 # Marvin
 # hdu = fits.open("/home/nius2022/observational_data/ex_lupi/ADP.2023-04-05T09:17:48.818.fits")
 print(hdu.info())
 data = hdu[1].data
 print(data.columns)
-
+# exit(0)
 wave_arr = data['WAVE'] * u.nm
-wave_arr = wave_arr.to(u.AA).value
-flux_arr = data['FLUX_REDUCED'] #* u.erg * u.cm**(-2) * u.s**(-1) *u.AA**(-1)
-flx_error_arr = data["ERR_REDUCED"] #* u.erg * u.cm**(-2) * u.s**(-1) *u.AA**(-1)
+# wave_arr = wave_arr.to(u.AA).value
+flux_arr = data['FLUX'] #* u.erg * u.cm**(-2) * u.s**(-1) *u.AA**(-1)
+flx_error_arr = data["ERR"] #* u.erg * u.cm**(-2) * u.s**(-1) *u.AA**(-1)
 wave_arr = np.array(wave_arr).flatten()
 flux_arr = np.array(flux_arr).flatten()
 flx_error_arr = np.array(flx_error_arr).flatten()
-# flux_photon = flux_arr * wave_arr / (const.h * const.c)
-# err_photon = flx_error_arr * wave_arr / (const.h * const.c)
-# plt.plot(wave_arr, flux_arr)
-# plt.show()
 
+qual = np.array(data["QUAL"]).ravel().astype(np.uint32)
+
+good = (qual == 0) & np.isfinite(flux_arr) & np.isfinite(flx_error_arr) & np.isfinite(wave_arr)
+flx_error_arr = np.array(flx_error_arr).flatten()
+flux_photon = flux_arr * wave_arr / (const.h * const.c)
+err_photon = flx_error_arr * wave_arr / (const.h * const.c)
+plt.plot(wave_arr[good], flux_arr[good])
+plt.show()
+exit(0)
 ####### Convolution
 window_size = 51
 flux_smooth = np.convolve(flux_arr, np.ones(window_size)/window_size, 'same')

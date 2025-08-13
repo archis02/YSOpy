@@ -10,6 +10,7 @@
 # here.
 ####################
 import numpy as np
+import matplotlib.pyplot as plt
 import ysopy.base_funcs as bf
 import astropy.units as u
 import astropy.constants as const
@@ -41,11 +42,11 @@ def model_spec_window_no_convolution(theta, config):
     config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
     config['b'] = theta[2]
     config['inclination'] = np.arccos(theta[3]/10)# * np.pi / 180.0  # radians
-    # config["t_0"] = theta[4] * 1000
-    # config['t_slab'] = theta[4] * 1000.0 * u.K
-    # config["n_e"] = 10**theta[5] * u.cm**(-3)
-    # config["tau"] = theta[6]
-    # config["av"] = theta[7]
+    config["t_0"] = theta[4] * 1000
+    config['t_slab'] = theta[4] * 1000.0 * u.K
+    config["n_e"] = 10**theta[5] * u.cm**(-3)
+    config["tau"] = theta[6]
+    config["av"] = theta[7]
     # get the stellar paramters from the isochrone model, Baraffe et al. 2015(?)
     m = np.array(
         [0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.072, 0.075, 0.08, 0.09, 0.1, 0.11, 0.13, 0.15, 0.17, 0.2,
@@ -210,7 +211,21 @@ def resume_sampling(params_label, backend_filename, niter_more, config_dict, con
 
     return params
 
+if __name__ == '__main__':
+    config_dict = utils.config_read_bare("ysopy/config_file.cfg")
+    n_windows = len(config_dict['windows'])
+    theta = np.array([10, 6.5, 1.5, 7.07, 8, 13, 1, 5])  # test case for Balmer jump thing
+    wave_ax, total_flux, flux_photon = model_spec_window_no_convolution(theta, config_dict)
 
+    ####### Convolution
+    window_size = 101
+    flux_smooth = np.convolve(total_flux, np.ones(window_size) / window_size, 'same')
+
+
+    plt.plot(wave_ax, total_flux)
+    plt.plot(wave_ax, flux_smooth)
+    plt.show()
+"""
 if __name__ == "__main__":
     cpu_cores_used = cpu_count()
     # read data for Marvin
@@ -259,7 +274,7 @@ if __name__ == "__main__":
     print("completed")
 
 ##############################################
-
+"""
 ##############################################
 #  This block is to restart sampling from a pre calculated chain
 """

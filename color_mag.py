@@ -17,6 +17,7 @@ plot_dir = "../plots/color_mag_diagram"
 config = utils.config_read_bare("ysopy/config_file.cfg")
 log_m_dot_arr = np.linspace(-10, -4, 50)
 m_arr = np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.3, 1.5])
+# m_arr = np.array([1.3])
 np.save(f"{save_dir}/log_m_dot_arr", log_m_dot_arr)
 
 
@@ -53,10 +54,17 @@ def update_photo_temp(config, generate_temp=False, generate_radius=False):
 
 def generate_total_flux(config, log_m_dot_arr, save_loc):
     for i in range(len(log_m_dot_arr)):
+    # for i in range(22, 31):
+        print(i+1)
         config["m_dot"] = 10**log_m_dot_arr[i] * const.M_sun.value / 31557600.0
-        wavelength, total_flux = bf.total_spec(config)
+        wavelength, ext_total_flux, total_flux, obs_viscous_disk_flux, obs_dust_flux, obs_mag_flux, obs_star_flux = bf.total_spec(config)
         # total_flux = total_flux
+        np.save(f"{save_loc}/ext_total_flux_{i}", ext_total_flux)
         np.save(f"{save_loc}/total_flux_{i}.npy", total_flux)
+        np.save(f"{save_loc}/obs_viscous_disk_flux_{i}.npy", obs_viscous_disk_flux)
+        np.save(f"{save_loc}/obs_dust_flux_{i}.npy", obs_dust_flux)
+        np.save(f"{save_loc}/obs_mag_flux_{i}.npy", obs_mag_flux)
+        np.save(f"{save_loc}/obs_star_flux_{i}.npy", obs_star_flux)
     np.save(f"{save_loc}/wavelength.npy", wavelength)
 
 
@@ -172,7 +180,7 @@ def lightcurve(log_m_dot_arr, save_loc):
     
     for i in range(len(log_m_dot_arr)):
         print(f"----------- {i} -----------")
-        total_flux = np.load(f"{save_loc}/total_flux_{i}.npy")
+        total_flux = np.load(f"{save_loc}/ext_total_flux_{i}.npy")
         mag_G = get_photometry(address_G, e_zero_G, wv, total_flux)
         mag_RP = get_photometry(address_RP, e_zero_RP, wv, total_flux)
         mag_BP = get_photometry(address_BP, e_zero_BP, wv, total_flux)
@@ -243,8 +251,12 @@ def generate_grid_m_mdot(config, log_m_dot_arr, m_arr, save_dir):
 
 
 # generate_total_flux(config, log_m_dot_arr, save_loc)
+# m = m_arr[0]
+# dir_name = f"m_{m}"
+# save_loc = f"{save_dir}/{dir_name}"
 # lightcurve(log_m_dot_arr, save_loc)
 # generate_grid_m_mdot(config=config, log_m_dot_arr=log_m_dot_arr, m_arr=m_arr, save_dir=save_dir)
+# exit(0)
 def generate_grid_color_mag_diagram(m_arr, save_dir, magy:str, magx1:str, magx2:str, plot=False, plot_dir=None):
     fig, ax = plt.subplots()
     color_arr = ["red", "pink", "blue", "purple", "green", "magenta", "black", "indigo", "orange", "gray"]
@@ -257,25 +269,102 @@ def generate_grid_color_mag_diagram(m_arr, save_dir, magy:str, magx1:str, magx2:
         magy1 = np.load(f"{save_loc}/{dictionary[f"{magy}"]}.npy")
         magx1_val = np.load(f"{save_loc}/{dictionary[f"{magx1}"]}.npy")
         magx2_val = np.load(f"{save_loc}/{dictionary[f"{magx2}"]}.npy")
+        print(f"\t\tM_dot\tmagy\tmagx1\t\tmagx2\t\tcolor")
+        for j in range(len(log_m_dot_arr)):
+            print(f"Frame: {j+1}\t{log_m_dot_arr[j]:.3f}\t{magy1[j]:.3f}\t{magx1_val[j]:.5f}\t{magx2_val[j]:.5f}\t{(magx1_val[j] - magx2_val[j]):.3f}")
         color_x = magx1_val - magx2_val
-        ax.plot(color_x, magy1, "*-", label=f"m: {m}", color=color_arr[i])
+        label_m = "$M_{\odot}$"
+        label_m_left = "$M_{*}$"
+        ax.plot(color_x, magy1, "*-", label=f"{label_m_left}: {m} {label_m}", color=color_arr[i])
     ax.grid(True)
     ax.invert_yaxis()
     ax.legend()
-    plt.xlabel(f"{magx1} - {magx2}")
-    plt.ylabel(f"{magy}")
-    plt.savefig(f"{plot_dir}/color_mag_{magx1}-{magx2}_vs_{magy}.pdf")
+    plt.xlabel(f"{magx1} - {magx2} (color)")
+    plt.ylabel(f"{magy} (absolute magnitude)")
+    # plt.savefig(f"{plot_dir}/color_mag_{magx1}-{magx2}_vs_{magy}.pdf")
     if plot:
         plt.show()
     else:
         plt.close()
 
 
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
+
+
+def generate_grid_color_mag_diagram_gpt(
+        m_arr, save_dir, magy: str, magx1: str, magx2: str,
+        plot=False, plot_dir=None,
+        xlim_inset=None, ylim_inset=None  # new optional zoom params
+):
+    fig, ax = plt.subplots(figsize=(7, 6))
+    color_arr = ["red", "pink", "blue", "purple", "green", "magenta", "black", "indigo", "orange", "gray"]
+
+    dictionary = dict(g="mag_G", rp="mag_RP", bp="mag_BP", w1="mag_W1", w2="mag_W2",
+                      j="mag_J", h="mag_H", k="mag_Ks", u="mag_u", u_prime="mag_u_prime")
+
+    for i in range(0, len(m_arr), 2):
+        m = m_arr[i]
+        dir_name = f"m_{m}"
+        save_loc = f"{save_dir}/{dir_name}"
+
+        magy1 = np.load(f"{save_loc}/{dictionary[magy]}.npy")
+        magx1_val = np.load(f"{save_loc}/{dictionary[magx1]}.npy")
+        magx2_val = np.load(f"{save_loc}/{dictionary[magx2]}.npy")
+
+        color_x = magx1_val - magx2_val
+        label_m = "$M_{\odot}$"
+        label_m_left = "$M_{*}$"
+
+        ax.plot(color_x, magy1, "*-", label=f"{label_m_left}: {m} {label_m}", color=color_arr[i])
+
+    ax.grid(True)
+    ax.invert_yaxis()
+    ax.legend()
+    ax.set_xlabel(f"{magx1} - {magx2} (color)")
+    ax.set_ylabel(f"{magy} (absolute magnitude)")
+    # ---- ZOOMED INSET ----
+    if xlim_inset and ylim_inset:
+        axins = inset_axes(ax, width="35%", height="35%", borderpad=2)
+        for i in range(0, len(m_arr), 2):
+            m = m_arr[i]
+            dir_name = f"m_{m}"
+            save_loc = f"{save_dir}/{dir_name}"
+
+            magy1 = np.load(f"{save_loc}/{dictionary[magy]}.npy")
+            magx1_val = np.load(f"{save_loc}/{dictionary[magx1]}.npy")
+            magx2_val = np.load(f"{save_loc}/{dictionary[magx2]}.npy")
+
+            color_x = magx1_val - magx2_val
+            axins.plot(color_x, magy1, "*-", color=color_arr[i])
+
+        axins.set_xlim(*xlim_inset)
+        axins.set_ylim(*ylim_inset)
+        axins.invert_yaxis()
+        axins.grid(True)
+        mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
+    # ---- Output or Save ----
+    if plot:
+        plt.show()
+    else:
+        if plot_dir:
+            out_file = f"{plot_dir}/color_mag_{magx1}-{magx2}_vs_{magy}_inset.pdf"
+            plt.savefig(out_file, bbox_inches='tight')
+        plt.close()
+
+
 # generate_grid_color_mag_diagram(m_arr=m_arr, save_dir=save_dir, magy="u", magx1="w1", magx2="w2", plot_dir=plot_dir, plot=True)
+# generate_grid_color_mag_diagram(m_arr=m_arr, save_dir=save_dir, magy="u", magx1="bp", magx2="rp", plot_dir=plot_dir, plot=True)
+
 # generate_grid_color_mag_diagram(m_arr=m_arr, save_dir=save_dir, magy="g", magx1="bp", magx2="rp", plot_dir=plot_dir, plot=True)
+# generate_grid_color_mag_diagram_gpt(xlim_inset=[6.60, 6.63], ylim_inset=[13.90, 13.94], m_arr=m_arr, save_dir=save_dir, magy="g", magx1="bp", magx2="rp", plot_dir=plot_dir, plot=True)
+generate_grid_color_mag_diagram_gpt(m_arr=m_arr, save_dir=save_dir, magy="w1", magx1="w1", magx2="w2", plot_dir=plot_dir, plot=True)
+
 # generate_grid_color_mag_diagram(m_arr=m_arr, save_dir=save_dir, magy="w1", magx1="w1", magx2="w2", plot_dir=plot_dir, plot=True)
-#
-# exit(0)
+
+exit(0)
 def generate_flux_except_hslab(config, log_m_dot_arr, save_loc):
     for i in range(len(log_m_dot_arr)):
         config["m_dot"] = 10**log_m_dot_arr[i] * const.M_sun.value / 31557600.0

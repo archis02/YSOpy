@@ -1045,8 +1045,30 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
     t_dust_init = t_eff_dust(r_dust, config)
 
     if t_eff_dust(r_sub, config) > 1400:
-        t_dust_init[np.where(t_dust_init>1400.0)] = 1400
-        t_dust = t_dust_init
+        # Below line is how we are putting a cap on the max temperature
+        # of the dust disk. But there is the problem that the flux from
+        # The dust disk drops abruptly. This is because
+        # As the accretion rate increases, the visc temperature profile
+        # rises faster than the dust temperature profile
+        # So we had made the approximation that the final temperature
+        # profile is the max of either temperature profiles with the
+        # condition that the temperature should not cross 1400K...
+
+        # These lines remains uncommented always except when creating CMD
+        # t_dust_init[np.where(t_dust_init>1400.0)] = 1400
+        # t_dust = t_dust_init
+
+        ##### below two lines are copy pasted from else statement
+        # There is problem with fixing the temperature to 1400K forcively
+        # Although the temperature of the flared disk can be capped at lower
+        # temperature, the flux drops abruptly and this shows up in the
+        # Color magnitude diagram
+
+        # Comment these lines always except when creating CMDs (wise bands)
+        t_visc_dust = temp_visc(r_dust, r_in, config['m'], config['m_dot'])
+        t_dust = np.maximum(t_dust_init, t_visc_dust)
+
+        # print("t_dust_if", t_dust)
         # t_dust = ma.masked_greater(t_dust_init, 1400)
         # t_dust = t_dust.filled(1400)
         # t_dust = t_dust * u.K
@@ -1054,7 +1076,6 @@ def generate_dusty_disk_flux(config, r_in, r_sub):
         # t_visc_dust = np.zeros(len(r_dust)) * u.K
         t_visc_dust = temp_visc(r_dust, r_in, config['m'], config['m_dot'])
         t_dust = np.maximum(t_dust_init, t_visc_dust)
-
     if plot:
         plt.plot(r_dust / const.au, t_dust)
         plt.xlabel("Radial distance [AU]")
@@ -1171,26 +1192,27 @@ def total_spec(dict_config):
     wavelength, obs_viscous_disk_flux = generate_visc_flux(dict_config, d, t_max, dr)
     t2 = time.time()
     # logger.info(f'Viscous disk done, time taken : {t2 - t1}')
-    print(f'Viscous disk done, time taken : {t2 - t1}')
+    # print(f'Viscous disk done, time taken : {t2 - t1}')
 
     obs_mag_flux = magnetospheric_component_calculate(dict_config, r_in)
     t3 = time.time()
     # logger.info(f"Magnetic component done, time taken :{t3-t2}")
-    print(f"Magnetic component done, time taken :{t3-t2}")
+    # print(f"Magnetic component done, time taken :{t3-t2}")
 
     obs_dust_flux = generate_dusty_disk_flux(dict_config, r_in, r_sub)
     t4 = time.time()
     # logger.info(f"Dust component done, time taken : {t4-t3}")
-    print(f"Dust component done, time taken : {t4-t3}")
+    # print(f"Dust component done, time taken : {t4-t3}")
 
     obs_star_flux = generate_photosphere_flux(dict_config)
     t5 = time.time()
     # logger.info(f"Photospheric component done, time taken {t5-t4}")
-    print(f"Photospheric component done, time taken {t5-t4}")
-    total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux, 
+    total_flux = obs_viscous_disk_flux + obs_dust_flux + obs_star_flux + obs_mag_flux
+    # print(f"Photospheric component done, time taken {t5-t4}")
+    ext_total_flux = dust_extinction_flux(dict_config, wavelength, obs_viscous_disk_flux,
                                       obs_star_flux, obs_mag_flux,obs_dust_flux)
 
-    return wavelength, total_flux
+    return wavelength, ext_total_flux, total_flux, obs_viscous_disk_flux, obs_dust_flux, obs_mag_flux, obs_star_flux
 
 
 def main(raw_args=None):
