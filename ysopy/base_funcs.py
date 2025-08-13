@@ -106,7 +106,7 @@ def read_bt_settl_npy(config, temperature: int, logg: float, r_in=None, ret_full
         address = f"{loc}/lte0{temperature}-{logg}-0.0.BT-Settl.7.dat.npy"
     else:
         address = f"{loc}/lte0{temperature}-{logg}-0.0.BT-Settl.7.dat.npy"
-    
+
     data = load_npy_file(address)
 
     # convert to air, for trimming
@@ -764,8 +764,10 @@ def generate_photosphere_flux(config):
     d_star = config["d_star"]
 
     int_star_temp = int(np.round(t_star / 100))
-
-    address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.npy"
+    if int_star_temp > 25:
+        address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0a+0.0.BT-Settl.7.dat.npy"
+    else:
+        address = f"{config['bt_settl_path']}/lte0{int_star_temp}-{log_g_star}-0.0.BT-Settl.7.dat.npy"
     data = np.load(address)
 
     l_bound = np.searchsorted(data[0],l_min_air - 10.0)

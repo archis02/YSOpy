@@ -14,16 +14,19 @@ save_loc = "/home/nius2022/2025_mcmc_ysopy/Buffer/spectra_save"
 config = utils.config_read_bare("ysopy/config_file.cfg")
 # theta = np.array([6, 4.5, 2.0, 20, 9])  # test case for high accretion rate
 # theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1])  # test case for low accretion rate
-theta = np.array([10, 6.5, 1.5, 25, 8, 13, 1, 5])  # test case for Balmer jump thing
+theta = np.array([10, 6.5, 1.5, 2.5, 8, 13, 1, 5])  # test case for Balmer jump thing
+theta = np.array([2.80904615e+00, 4.68536777e+00, 2.13804331e+00, 5.16027159e+00,
+ 5.33837285e+00, 8.50825710e+00, 1.34795676e+01, 2.44936595e-02,
+ 10.98235142e+00])
 # theta = np.array([6, 4.5, 2.0, 20, 9, 0, 1])
 # generate spectra with ysopy =================
 # """
 wave, total_flux, flux_photon_count = mc_file.model_spec_window(theta, config)
 # change the lower line to total_flux / flux_photon_count based on what do you want to save
 flux = flux_photon_count
-# plt.plot(wave, flux)
-# plt.show()
-# exit(0)
+plt.plot(wave, flux)
+plt.show()
+exit(0)
 np.save(f"{save_loc}/true_flux_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", flux)
 np.save(f"{save_loc}/true_wave_m_{theta[0]}_mdot_{theta[1]}_b_{theta[2]}_i_{theta[3]}_tslab_{theta[4]}.npy", wave)
 # """
