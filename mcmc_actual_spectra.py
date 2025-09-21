@@ -35,26 +35,29 @@ if __name__ == "__main__":
     # loading data for V960 Mon
     # data = np.load(f"{path_to_valid}/stitched_HIRES_data_V960.npy")
     # data = np.load(f"{path_to_valid}/data_v899_mon_cc2.npy")
-    data = np.load(f"{path_to_valid}/data_hbc722_mon_ccd2.npy")
+    # data = np.load(f"{path_to_valid}/data_hbc722_ccd2.npy")
     # data = np.load(f"{path_to_valid}/data_ex_lupi.npy")
+    data = np.load(f"{path_to_valid}/data_v960mon_round2.npy")
 
     # radial velocity correction, taken from header
-    # data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 43 * u.km / u.s)  # V960 Mon
+    data[0] = mc_file.rad_vel_correction(data[0]*u.AA, 43 * u.km / u.s)  # V960 Mon
     # data[0] = mc_file.rad_vel_correction(data[0] * u.AA, 27.92 * u.km / u.s)  # V899 Mon
-    data[0] = mc_file.rad_vel_correction(data[0] * u.AA, -10.0 * u.km / u.s)  # HBC 722, Carvalho paper
+    # data[0] = mc_file.rad_vel_correction(data[0] * u.AA, -10.0 * u.km / u.s)  # HBC 722, Carvalho paper
     x_obs = data[0]
     y_obs = data[1]  # /np.median(data_flux)  # this is not correct --> should be done for each window separately
     yerr = data[2]  # /np.median(data_flux)
 
     # filename where the chain will be stored
     # save_filename = f'v899_mon_ccd2.h5'
-    save_filename = f'hbc722_ccd2.h5'
+    #save_filename = f'hbc722_ccd2.h5'
+    save_filename = f"v960_mon_ccd_mass_const.h5"
     # save_filename = f"ex_lupi.h5"
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination']  # for V960 Mon
+    params_label = ['log_m_dot', 'b', 'cos_inclination']  # for V960 Mon (mass fixed)
     # params_label = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]  # for Ex Lupi, 899
     # params_label = ['log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau"]
-    params_hbc722 = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]
-    params_label = params_hbc722
+    # params_hbc722 = ['m', 'log_m_dot', 'b', 'cos_inclination', "t_0", "t_slab", "log_n_e", "tau", "av"]
+    # params_label = params_hbc722
     n_params = len(params_label)  # number of parameters that are varying
     n_walkers = 80
     n_iter = 1000

@@ -101,10 +101,10 @@ def model_spec_window(theta, config):
     # config = utils.config_read_bare('ysopy/config_file.cfg')
     # print("Theta :->", theta)
     # overwrite the given config dictionary, after SCALING
-    config['m'] = theta[0] / 10.0 * const.M_sun.value
-    config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
-    config['b'] = theta[2]
-    config['inclination'] = np.arccos(theta[3]/10)# * np.pi / 180.0  # radians
+    # config['m'] = theta[0] / 10.0 * const.M_sun.value
+    # config['m_dot'] = 10 ** (-1.0 * theta[1]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
+    # config['b'] = theta[2]
+    # config['inclination'] = np.arccos(theta[3]/10)# * np.pi / 180.0  # radians
     # below funcs are in HBC722 but not in V960 now
     # config["t_0"] = theta[4] * 1000
     # config['t_slab'] = theta[4] * 1000.0 * u.K
@@ -112,11 +112,11 @@ def model_spec_window(theta, config):
     # config["tau"] = theta[6]
     # config["av"] = theta[7]
 
-    ### v899 only
+    ### v899 only and V960_Mon_ccd2_mass_constant
     # # config['m'] = theta[0] / 10.0 * const.M_sun.value
-    # config['m_dot'] = 10 ** (-1.0 * theta[0]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
-    # config['b'] = theta[1]
-    # config['inclination'] = np.arccos(theta[2] / 10)  # * np.pi / 180.0  # radians
+    config['m_dot'] = 10 ** (-1.0 * theta[0]) * const.M_sun.value / 31557600.0  ## Ensure the 10** here
+    config['b'] = theta[1]
+    config['inclination'] = np.arccos(theta[2] / 10)  # * np.pi / 180.0  # radians
     # config["t_0"] = theta[4] * 1000
     # config['t_slab'] = theta[4] * 1000.0 * u.K
     # config["n_e"] = 10**theta[5] * u.cm**(-3)
@@ -136,8 +136,9 @@ def model_spec_window(theta, config):
     func_temp = interp1d(m, temp_arr, bounds_error=False, fill_value="extrapolate")
     func_rad = interp1d(m, rad_arr, bounds_error=False, fill_value="extrapolate")
 
-    config["t_star"] = int(func_temp(theta[0] / 10.0) / 100.0) * 100.0
-    config["r_star"] = func_rad(theta[0] / 10.0) * const.R_sun.value  # comment this for v899
+    config["t_star"] = int(func_temp(config['m']) / 100.0) * 100.0
+    config["r_star"] = func_rad(config['m']) * const.R_sun.value  # comment this for v899
+
 
     # run model
     # t0 = time.time()
